@@ -1,0 +1,49 @@
+﻿@page "/"
+
+@using SkiaSharp.Views.Blazor
+@using MudBlazor
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Primal</PageTitle>
+
+<MudContainer Style="height: 100%;">
+    <style type="text/css">
+        html, body {
+            margin: 0 auto;
+            height: 100%;
+            max-width: none;
+            overflow: hidden;
+        }
+
+        .mud-container {
+            padding: 0;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        #app {
+            height: 100%;
+        }
+    </style>
+
+    <SKCanvasView @ref="_drawingCanvas"
+                  OnPaintSurface="DrawNextCanvasFrame"
+                  @onmousewheel="OnMouseWheel"
+                  @onmousedown="OnMouseDown"
+                  @onmouseup="OnMouseUp"
+                  @onmousemove="OnMouseMove"
+                  IgnorePixelScaling="true" />
+</MudContainer>
+
+@* <MudFab OnClick="@ToggleTools" Style="position: fixed; top: 88px; left: 24px;" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Build" /> *@
+
+
+@*     <MudDrawer @bind-Open="@ToolsOpen" Anchor="Anchor.Right" Elevation="0" Variant="@DrawerVariant.Persistent" ClipMode="DrawerClipMode.Always">
+        <MudDrawerHeader Style="padding-bottom: 0; min-height: unset;">
+            <MudText Typo="Typo.h6">Tools</MudText>
+        </MudDrawerHeader>
+
+    </MudDrawer> *@

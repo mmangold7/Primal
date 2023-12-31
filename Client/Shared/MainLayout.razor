@@ -1,0 +1,40 @@
+﻿@using MudBlazor
+@using Primal.Client.Services
+@inherits LayoutComponentBase
+
+@inject ThemeService ThemeService
+
+<MudThemeProvider @bind-IsDarkMode="@_isDarkMode" Theme="ThemeService.CurrentTheme" />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout Style="height: 100%;">
+    <MudAppBar Color="Color.Primary" Elevation="1">
+        <MudSpacer />
+
+        <MudHidden Breakpoint="Breakpoint.MdAndDown">
+            <MudButtonGroup Edge="Edge.End">
+                <MudIconButton Color="Color.Inherit" Icon="@(_isDarkMode ? Icons.Material.Filled.Brightness7 : Icons.Material.Filled.Brightness4)" OnClick="@ToggleDarkMode" />
+            </MudButtonGroup>
+        </MudHidden>
+
+        <MudHidden Breakpoint="Breakpoint.LgAndUp">
+            <!-- Dropdown menu for smaller screens -->
+            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Direction="Direction.Bottom">
+                <MudMenuItem OnClick="@ToggleDarkMode">Toggle Dark Mode</MudMenuItem>
+            </MudMenu>
+        </MudHidden>
+    </MudAppBar>
+    <MudMainContent Style="height: 100%;">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _isDarkMode = true;
+
+    void ToggleDarkMode()
+    {
+        _isDarkMode = !_isDarkMode;
+    }
+}
