@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
+using Primal.Client.Services;
 using SkiaSharp;
 using SkiaSharp.Views.Blazor;
 using System.Numerics;
@@ -12,23 +13,29 @@ public partial class Index
     public BigInteger SelectedNumber { get; set; }
     private float _zoomScale = 1f;
     private List<int> primes = new List<int>();
-    private int maxNumber = 40000;
+    private int maxNumber = 10000;
     private SKPoint _lastMousePosition;
     private SKPoint _currentPanOffset = new SKPoint(0, 0);
     private SKBitmap _spiralBitmap;
-    private bool _isDebugModeEnabled;
-    private const float squareSize = 10; // Adjust this value based on your preference
+    private bool _isDebugModeEnabled = true;
+    private const float squareSize = 1; // Adjust this value based on your preference
     private string _debugText = "";
+    private float _canvasWidth;
+    private float _canvasHeight;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
             var size = await JSRuntime.InvokeAsync<Size>("getElementSize", "canvasElementId");
-            CenterSpiralOnCanvas(size.Width, size.Height);
-            SetInitialZoomLevel(size.Height);
+            _canvasWidth = size.Width;
+            _canvasHeight = size.Height;
 
-            StateHasChanged(); // Re-render the component with the updated settings
+            SetInitialZoomLevel(size.Height);
+            CreateSpiralBitmap(maxNumber, _zoomScale);
+            CenterSpiralOnCanvas(size.Width, size.Height);
+
+            StateHasChanged();
         }
     }
 
@@ -45,10 +52,12 @@ public partial class Index
         CreateSpiralBitmap(maxNumber, _zoomScale);
 
         ThemeService.OnDarkModeChanged += HandleDarkModeChanged;
+        ThemeService.OnDebugModeChanged += HandleDebugModeChanged;
     }
     public void Dispose()
     {
         ThemeService.OnDarkModeChanged -= HandleDarkModeChanged;
+        ThemeService.OnDebugModeChanged -= HandleDebugModeChanged;
     }
 
     private void HandleDarkModeChanged(object? sender, EventArgs e)
@@ -59,11 +68,16 @@ public partial class Index
 
     private void UpdateDebugText()
     {
-        _debugText = $"Pan: {_currentPanOffset}, Zoom: {_zoomScale}";
+        if (_isDebugModeEnabled)
+        {
+            _debugText = $"Pan: {_currentPanOffset}, Zoom: {_zoomScale}";
+            StateHasChanged();
+        }
     }
 
     private async void HandleDebugModeChanged(object? sender, EventArgs e)
     {
+        _isDebugModeEnabled = ThemeService.IsDebugMode;
         UpdateDebugText();
         await TriggerUiCanvasRedraw();
     }
@@ -71,14 +85,17 @@ public partial class Index
     private void CenterSpiralOnCanvas(float canvasWidth, float canvasHeight)
     {
         int spiralSize = CalculateRequiredBitmapSize(maxNumber, _zoomScale);
-        _currentPanOffset = new SKPoint((canvasWidth - spiralSize) / 2, (canvasHeight - spiralSize) / 2);
+        _currentPanOffset = new SKPoint(
+            (canvasWidth - spiralSize * _zoomScale) / 2,
+            (canvasHeight - spiralSize * _zoomScale) / 2
+        );
     }
 
     private void SetInitialZoomLevel(float canvasHeight)
     {
-        int layer = (int)Math.Ceiling((Math.Sqrt(10) - 1) / 2);  // Adjust based on how many squares you want to show
-        float totalHeightOfSquares = (2 * layer + 1) * squareSize;  // squareSize is the size of one square at scale = 1
-        _zoomScale = canvasHeight / totalHeightOfSquares;
+        int desiredBlocksVisible = 20; // Number of blocks to show
+        float totalHeightOfBlocks = desiredBlocksVisible * squareSize; // Total height of the blocks
+        _zoomScale = canvasHeight / totalHeightOfBlocks;
     }
 
     private int CalculateRequiredBitmapSize(int maxNumber, float scale)
@@ -101,8 +118,8 @@ public partial class Index
             //    : SKColors.White;
 
             canvas.Clear(SKColors.Transparent);
-            var primePaint = new SKPaint { Color = SKColors.Blue, IsAntialias = true, Style = SKPaintStyle.Fill };
-            var nonPrimePaint = new SKPaint { Color = SKColors.Gray, IsAntialias = true, Style = SKPaintStyle.Fill };
+            var primePaint = new SKPaint { Color = SKColors.Black, IsAntialias = true, Style = SKPaintStyle.Fill };
+            var nonPrimePaint = new SKPaint { Color = SKColors.Transparent, IsAntialias = true, Style = SKPaintStyle.Fill };
 
             for (int i = 1; i <= maxNumber; i++)
             {
@@ -146,7 +163,17 @@ public partial class Index
 
     private void OnMouseWheel(WheelEventArgs e)
     {
+        var oldZoomScale = _zoomScale;
         _zoomScale *= e.DeltaY < 0 ? 1.2f : 0.8f;
+
+        // Calculate the change in scale
+        float scaleChange = _zoomScale / oldZoomScale;
+
+        // Adjust the pan offset to maintain the center of the view
+        _currentPanOffset.X = (_currentPanOffset.X - _canvasWidth / 2) * scaleChange + _canvasWidth / 2;
+        _currentPanOffset.Y = (_currentPanOffset.Y - _canvasHeight / 2) * scaleChange + _canvasHeight / 2;
+
+        UpdateDebugText();
         TriggerUiCanvasRedraw().ConfigureAwait(false);
     }
 
@@ -157,13 +184,14 @@ public partial class Index
 
     private void OnMouseMove(MouseEventArgs e)
     {
-        if (e.Buttons == 1) // Check if the left mouse button is pressed
+        if (e.Buttons == 1) // Left mouse button
         {
             var currentMousePosition = new SKPoint((float)e.ClientX, (float)e.ClientY);
             var delta = currentMousePosition - _lastMousePosition;
             _lastMousePosition = currentMousePosition;
             _currentPanOffset += delta;
 
+            UpdateDebugText();
             TriggerUiCanvasRedraw().ConfigureAwait(false);
         }
     }

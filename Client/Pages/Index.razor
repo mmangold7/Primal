@@ -30,6 +30,22 @@
         #app {
             height: 100%;
         }
+
+        .mud-container {
+            padding: 0;
+            position: relative; /* Needed for absolute positioning of children */
+        }
+
+        .debug-overlay {
+            position: absolute;
+            top: 10px; /* Adjust as needed */
+            left: 10px; /* Adjust as needed */
+            color: white; /* Choose a color that is visible over the canvas */
+            background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+            padding: 5px;
+            border-radius: 5px;
+            z-index: 10; /* Ensure it's above the canvas */
+        }
     </style>
 
     <SKCanvasView 
@@ -42,7 +58,7 @@
         IgnorePixelScaling="true"
         OnPaintSurface="DrawNextCanvasFrame" />
     
-    @if (ThemeService.IsDebugMode)
+    @if (_isDebugModeEnabled)
     {
         <div class="debug-overlay">@_debugText</div>
     }
