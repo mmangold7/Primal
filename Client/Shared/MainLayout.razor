@@ -4,7 +4,7 @@
 
 @inject ThemeService ThemeService
 
-<MudThemeProvider @bind-IsDarkMode="@_isDarkMode" Theme="ThemeService.CurrentTheme" />
+<MudThemeProvider @bind-IsDarkMode="ThemeService.IsDarkMode" Theme="ThemeService.CurrentTheme" />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
@@ -14,7 +14,8 @@
 
         <MudHidden Breakpoint="Breakpoint.MdAndDown">
             <MudButtonGroup Edge="Edge.End">
-                <MudIconButton Color="Color.Inherit" Icon="@(_isDarkMode ? Icons.Material.Filled.Brightness7 : Icons.Material.Filled.Brightness4)" OnClick="@ToggleDarkMode" />
+                <MudIconButton Icon="@Icons.Material.Filled.BugReport" OnClick="ToggleDebugMode" />
+                <MudIconButton Color="Color.Inherit" Icon="@(ThemeService.IsDarkMode ? Icons.Material.Filled.Brightness7 : Icons.Material.Filled.Brightness4)" OnClick="@ToggleDarkMode"/>
             </MudButtonGroup>
         </MudHidden>
 
@@ -31,10 +32,13 @@
 </MudLayout>
 
 @code {
-    private bool _isDarkMode = true;
+    private void ToggleDebugMode()
+    {
+        ThemeService.IsDebugMode = !ThemeService.IsDebugMode;
+    }
 
     void ToggleDarkMode()
     {
-        _isDarkMode = !_isDarkMode;
+        ThemeService.IsDarkMode = !ThemeService.IsDarkMode;
     }
 }

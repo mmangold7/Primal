@@ -2,9 +2,12 @@
 
 @using SkiaSharp.Views.Blazor
 @using MudBlazor
+@using Primal.Client.Services
 @inject IJSRuntime JSRuntime
+@inject ThemeService ThemeService
+@implements IDisposable
 
-<PageTitle>Primal</PageTitle>
+<PageTitle>Ulam Spiral Explorer</PageTitle>
 
 <MudContainer Style="height: 100%;">
     <style type="text/css">
@@ -29,13 +32,20 @@
         }
     </style>
 
-    <SKCanvasView @ref="_drawingCanvas"
-                  OnPaintSurface="DrawNextCanvasFrame"
-                  @onmousewheel="OnMouseWheel"
-                  @onmousedown="OnMouseDown"
-                  @onmouseup="OnMouseUp"
-                  @onmousemove="OnMouseMove"
-                  IgnorePixelScaling="true" />
+    <SKCanvasView 
+        id="canvasElementId"
+        @ref="_drawingCanvas"
+        @onmousewheel="OnMouseWheel"
+        @onmousedown="OnMouseDown"
+        @onmouseup="OnMouseUp"
+        @onmousemove="OnMouseMove"
+        IgnorePixelScaling="true"
+        OnPaintSurface="DrawNextCanvasFrame" />
+    
+    @if (ThemeService.IsDebugMode)
+    {
+        <div class="debug-overlay">@_debugText</div>
+    }
 </MudContainer>
 
 @* <MudFab OnClick="@ToggleTools" Style="position: fixed; top: 88px; left: 24px;" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Build" /> *@

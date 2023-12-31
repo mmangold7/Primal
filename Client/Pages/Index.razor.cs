@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 using SkiaSharp;
 using SkiaSharp.Views.Blazor;
 using System.Numerics;
@@ -9,63 +10,130 @@ public partial class Index
 {
     private SKCanvasView? _drawingCanvas;
     public BigInteger SelectedNumber { get; set; }
-    private float _zoomScale = 1.0f;
+    private float _zoomScale = 1f;
     private List<int> primes = new List<int>();
-    private int maxNumber = 10000;
+    private int maxNumber = 40000;
     private SKPoint _lastMousePosition;
     private SKPoint _currentPanOffset = new SKPoint(0, 0);
+    private SKBitmap _spiralBitmap;
+    private bool _isDebugModeEnabled;
+    private const float squareSize = 10; // Adjust this value based on your preference
+    private string _debugText = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var size = await JSRuntime.InvokeAsync<Size>("getElementSize", "canvasElementId");
+            CenterSpiralOnCanvas(size.Width, size.Height);
+            SetInitialZoomLevel(size.Height);
+
+            StateHasChanged(); // Re-render the component with the updated settings
+        }
+    }
+
+    private class Size
+    {
+        public float Width { get; set; }
+        public float Height { get; set; }
+    }
 
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        GeneratePrimesUpTo(10000);
+        GeneratePrimesUpTo(maxNumber);
+        CreateSpiralBitmap(maxNumber, _zoomScale);
+
+        ThemeService.OnDarkModeChanged += HandleDarkModeChanged;
+    }
+    public void Dispose()
+    {
+        ThemeService.OnDarkModeChanged -= HandleDarkModeChanged;
+    }
+
+    private void HandleDarkModeChanged(object? sender, EventArgs e)
+    {
+        //CreateSpiralBitmap(maxNumber, _zoomScale);
+        //StateHasChanged(); // Update the UI
+    }
+
+    private void UpdateDebugText()
+    {
+        _debugText = $"Pan: {_currentPanOffset}, Zoom: {_zoomScale}";
+    }
+
+    private async void HandleDebugModeChanged(object? sender, EventArgs e)
+    {
+        UpdateDebugText();
+        await TriggerUiCanvasRedraw();
+    }
+
+    private void CenterSpiralOnCanvas(float canvasWidth, float canvasHeight)
+    {
+        int spiralSize = CalculateRequiredBitmapSize(maxNumber, _zoomScale);
+        _currentPanOffset = new SKPoint((canvasWidth - spiralSize) / 2, (canvasHeight - spiralSize) / 2);
+    }
+
+    private void SetInitialZoomLevel(float canvasHeight)
+    {
+        int layer = (int)Math.Ceiling((Math.Sqrt(10) - 1) / 2);  // Adjust based on how many squares you want to show
+        float totalHeightOfSquares = (2 * layer + 1) * squareSize;  // squareSize is the size of one square at scale = 1
+        _zoomScale = canvasHeight / totalHeightOfSquares;
+    }
+
+    private int CalculateRequiredBitmapSize(int maxNumber, float scale)
+    {
+        // Rough estimation of the spiral size
+        var maxLayer = (int)Math.Ceiling((Math.Sqrt(maxNumber) - 1) / 2);
+        var size = 2 * maxLayer + 1; // Number of squares per side
+        return (int)(size * scale);
+    }
+
+    private void CreateSpiralBitmap(int maxNumber, float scale)
+    {
+        int bitmapSize = CalculateRequiredBitmapSize(maxNumber, scale);
+        _spiralBitmap = new SKBitmap(bitmapSize, bitmapSize);
+
+        using (var canvas = new SKCanvas(_spiralBitmap))
+        {
+            //var backgroundColor = ThemeService.IsDarkMode 
+            //    ? new SKColor(50, 51, 61, 1) 
+            //    : SKColors.White;
+
+            canvas.Clear(SKColors.Transparent);
+            var primePaint = new SKPaint { Color = SKColors.Blue, IsAntialias = true, Style = SKPaintStyle.Fill };
+            var nonPrimePaint = new SKPaint { Color = SKColors.Gray, IsAntialias = true, Style = SKPaintStyle.Fill };
+
+            for (int i = 1; i <= maxNumber; i++)
+            {
+                var (x, y) = GetSpiralPosition(i, scale);
+                var rect = new SKRect(x + bitmapSize / 2, y + bitmapSize / 2,
+                    x + scale + bitmapSize / 2, y + scale + bitmapSize / 2);
+
+                var paint = primes.Contains(i) ? primePaint : nonPrimePaint;
+                canvas.DrawRect(rect, paint);
+            }
+        }
     }
 
     private async void DrawNextCanvasFrame(SKPaintSurfaceEventArgs args)
     {
-        var info = args.Info;
-        var surface = args.Surface;
-        var canvas = surface.Canvas;
+        var canvas = args.Surface.Canvas;
+        canvas.Clear(SKColors.Transparent);
 
-        canvas.Clear(SKColors.White);
+        // Create a matrix for scaling and translating
+        var matrix = SKMatrix.CreateIdentity();
+        SKMatrix.PostConcat(ref matrix, SKMatrix.CreateScale(_zoomScale, _zoomScale));
+        SKMatrix.PostConcat(ref matrix, SKMatrix.CreateTranslation(_currentPanOffset.X, _currentPanOffset.Y));
 
-        float scale = _zoomScale * 20; // Adjust this value as needed
-        int maxDrawNumber = maxNumber;
+        // Set the matrix on the canvas
+        canvas.SetMatrix(matrix);
 
-        for (int i = 1; i <= maxDrawNumber; i++)
-        {
-            var (x, y) = GetSpiralPosition(i, scale);
-            var rect = new SKRect(x + info.Width / 2 + _currentPanOffset.X,
-                y + info.Height / 2 + _currentPanOffset.Y,
-                x + scale + info.Width / 2 + _currentPanOffset.X,
-                y + scale + info.Height / 2 + _currentPanOffset.Y);
+        // Draw the bitmap
+        canvas.DrawBitmap(_spiralBitmap, 0, 0);
 
-            var paint = new SKPaint
-            {
-                Color = primes.Contains(i) ? SKColors.Blue : SKColors.Gray,
-                IsAntialias = true,
-                Style = SKPaintStyle.Fill
-            };
-
-            canvas.DrawRect(rect, paint);
-
-            // Draw numbers for smaller squares
-            if (i < 100)
-            {
-                var textPaint = new SKPaint
-                {
-                    Color = SKColors.Black,
-                    IsAntialias = true,
-                    TextSize = scale / 2, // Adjust text size as needed
-                    TextAlign = SKTextAlign.Center
-                };
-
-                var textBounds = new SKRect();
-                textPaint.MeasureText(i.ToString(), ref textBounds);
-
-                canvas.DrawText(i.ToString(), rect.MidX, rect.MidY - textBounds.MidY, textPaint);
-            }
-        }
+        // Reset the matrix after drawing
+        canvas.ResetMatrix();
 
         await TriggerUiCanvasRedraw();
     }
@@ -78,7 +146,7 @@ public partial class Index
 
     private void OnMouseWheel(WheelEventArgs e)
     {
-        _zoomScale *= e.DeltaY < 0 ? 1.2f : 0.8f; // Inverted zoom direction
+        _zoomScale *= e.DeltaY < 0 ? 1.2f : 0.8f;
         TriggerUiCanvasRedraw().ConfigureAwait(false);
     }
 
