@@ -1,27 +1,27 @@
 ﻿using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
-using Primal.Client.Services;
+using MudBlazor.Components.Chart;
 using SkiaSharp;
 using SkiaSharp.Views.Blazor;
 using System.Numerics;
+using System.Text.Json;
 
 namespace Primal.Client.Pages;
 
 public partial class Index
 {
-    private SKCanvasView? _drawingCanvas;
-    public BigInteger SelectedNumber { get; set; }
-    private float _zoomScale = 1f;
-    private List<int> primes = new List<int>();
-    private int maxNumber = 10000;
-    private SKPoint _lastMousePosition;
-    private SKPoint _currentPanOffset = new SKPoint(0, 0);
-    private SKBitmap _spiralBitmap;
+    private readonly int _maxNumber = 10000;
+    private List<int> _primes = new();
     private bool _isDebugModeEnabled = true;
-    private const float squareSize = 1; // Adjust this value based on your preference
     private string _debugText = "";
+    private float _zoomScale = 1f;
+    private SKPoint _lastMousePosition;
+    private SKPoint _currentPanOffset = new(0, 0);
+    private const float SquareSize = 1;
     private float _canvasWidth;
     private float _canvasHeight;
+    private SKCanvasView? _drawingCanvas;
+    private SKBitmap? _spiralBitmap;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -32,59 +32,89 @@ public partial class Index
             _canvasHeight = size.Height;
 
             SetInitialZoomLevel(size.Height);
-            CreateSpiralBitmap(maxNumber, _zoomScale);
+            CreateSpiralBitmap(_maxNumber, _zoomScale);
             CenterSpiralOnCanvas(size.Width, size.Height);
 
             StateHasChanged();
         }
     }
 
-    private class Size
+    protected override async Task OnInitializedAsync()
     {
-        public float Width { get; set; }
-        public float Height { get; set; }
-    }
+        await base.OnInitializedAsync();
 
-    protected override void OnInitialized()
-    {
-        base.OnInitialized();
-        GeneratePrimesUpTo(maxNumber);
-        CreateSpiralBitmap(maxNumber, _zoomScale);
+        var loaded = await LoadPrimesFromLocal();
+        if (!loaded)
+        {
+            GeneratePrimesUpTo(_maxNumber);
+            SavePrimesToLocal();
+        }
 
         ThemeService.OnDarkModeChanged += HandleDarkModeChanged;
         ThemeService.OnDebugModeChanged += HandleDebugModeChanged;
     }
-    public void Dispose()
-    {
-        ThemeService.OnDarkModeChanged -= HandleDarkModeChanged;
-        ThemeService.OnDebugModeChanged -= HandleDebugModeChanged;
-    }
 
-    private void HandleDarkModeChanged(object? sender, EventArgs e)
+    private void GeneratePrimesUpTo(int max)
     {
-        //CreateSpiralBitmap(maxNumber, _zoomScale);
-        //StateHasChanged(); // Update the UI
-    }
+        bool[] isPrime = new bool[max + 1];
+        Array.Fill(isPrime, true);
+        isPrime[0] = isPrime[1] = false;
 
-    private void UpdateDebugText()
-    {
-        if (_isDebugModeEnabled)
+        for (int p = 2; p * p <= max; p++)
         {
-            _debugText = $"Pan: {_currentPanOffset}, Zoom: {_zoomScale}";
-            StateHasChanged();
+            if (isPrime[p])
+            {
+                for (int i = p * p; i <= max; i += p)
+                    isPrime[i] = false;
+            }
+        }
+
+        for (int p = 2; p <= max; p++)
+        {
+            if (isPrime[p])
+            {
+                _primes.Add(p);
+            }
         }
     }
 
-    private async void HandleDebugModeChanged(object? sender, EventArgs e)
+    private (float x, float y) GetSpiralPosition(int number, float scale)
     {
-        _isDebugModeEnabled = ThemeService.IsDebugMode;
-        UpdateDebugText();
-        await TriggerUiCanvasRedraw();
+        if (number == 1) return (0, 0);
+
+        int layer = (int)Math.Ceiling((Math.Sqrt(number) - 1) / 2);
+        int legLength = 2 * layer;
+        int maxLayerValue = (2 * layer + 1) * (2 * layer + 1);
+        int offset = maxLayerValue - number;
+
+        int x = 0, y = 0;
+        if (offset < legLength) // Top
+        {
+            x = layer - offset;
+            y = layer;
+        }
+        else if (offset < 2 * legLength) // Left
+        {
+            x = -layer;
+            y = layer - (offset - legLength);
+        }
+        else if (offset < 3 * legLength) // Bottom
+        {
+            x = -layer + (offset - 2 * legLength);
+            y = -layer;
+        }
+        else // Right
+        {
+            x = layer;
+            y = -layer + (offset - 3 * legLength);
+        }
+
+        return (x * scale, y * scale);
     }
 
     private void CenterSpiralOnCanvas(float canvasWidth, float canvasHeight)
     {
-        int spiralSize = CalculateRequiredBitmapSize(maxNumber, _zoomScale);
+        int spiralSize = CalculateRequiredBitmapSize(_maxNumber, _zoomScale);
         _currentPanOffset = new SKPoint(
             (canvasWidth - spiralSize * _zoomScale) / 2,
             (canvasHeight - spiralSize * _zoomScale) / 2
@@ -94,7 +124,7 @@ public partial class Index
     private void SetInitialZoomLevel(float canvasHeight)
     {
         int desiredBlocksVisible = 20; // Number of blocks to show
-        float totalHeightOfBlocks = desiredBlocksVisible * squareSize; // Total height of the blocks
+        float totalHeightOfBlocks = desiredBlocksVisible * SquareSize; // Total height of the blocks
         _zoomScale = canvasHeight / totalHeightOfBlocks;
     }
 
@@ -127,7 +157,7 @@ public partial class Index
                 var rect = new SKRect(x + bitmapSize / 2, y + bitmapSize / 2,
                     x + scale + bitmapSize / 2, y + scale + bitmapSize / 2);
 
-                var paint = primes.Contains(i) ? primePaint : nonPrimePaint;
+                var paint = _primes.Contains(i) ? primePaint : nonPrimePaint;
                 canvas.DrawRect(rect, paint);
             }
         }
@@ -137,21 +167,12 @@ public partial class Index
     {
         var canvas = args.Surface.Canvas;
         canvas.Clear(SKColors.Transparent);
-
-        // Create a matrix for scaling and translating
         var matrix = SKMatrix.CreateIdentity();
-        SKMatrix.PostConcat(ref matrix, SKMatrix.CreateScale(_zoomScale, _zoomScale));
-        SKMatrix.PostConcat(ref matrix, SKMatrix.CreateTranslation(_currentPanOffset.X, _currentPanOffset.Y));
-
-        // Set the matrix on the canvas
+        matrix = matrix.PostConcat(SKMatrix.CreateScale(_zoomScale, _zoomScale));
+        matrix = matrix.PostConcat(SKMatrix.CreateTranslation(_currentPanOffset.X, _currentPanOffset.Y));
         canvas.SetMatrix(matrix);
-
-        // Draw the bitmap
         canvas.DrawBitmap(_spiralBitmap, 0, 0);
-
-        // Reset the matrix after drawing
         canvas.ResetMatrix();
-
         await TriggerUiCanvasRedraw();
     }
 
@@ -159,6 +180,27 @@ public partial class Index
     {
         _drawingCanvas?.Invalidate();
         await InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleDarkModeChanged(object? sender, EventArgs e)
+    {
+        //might need to update a local variable related to the canvas?
+    }
+
+    private void UpdateDebugText()
+    {
+        if (_isDebugModeEnabled)
+        {
+            _debugText = $"Pan: {_currentPanOffset}, Zoom: {_zoomScale}";
+            StateHasChanged();
+        }
+    }
+
+    private async void HandleDebugModeChanged(object? sender, EventArgs e)
+    {
+        _isDebugModeEnabled = ThemeService.IsDebugMode;
+        UpdateDebugText();
+        await TriggerUiCanvasRedraw();
     }
 
     private void OnMouseWheel(WheelEventArgs e)
@@ -196,59 +238,32 @@ public partial class Index
         }
     }
 
-    private void OnMouseUp(MouseEventArgs e)
+    private async Task<bool> LoadPrimesFromLocal()
     {
-        // You might want to handle this event if needed
+        var jsonPrimes = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "primes");
+        if (!string.IsNullOrEmpty(jsonPrimes))
+        {
+            _primes = JsonSerializer.Deserialize<List<int>>(jsonPrimes);
+            return true;
+        }
+        return false;
     }
 
-    private void GeneratePrimesUpTo(int max)
+    private void SavePrimesToLocal()
     {
-        bool[] isPrime = new bool[max + 1];
-        Array.Fill(isPrime, true);
-        isPrime[0] = isPrime[1] = false;
-
-        for (int p = 2; p <= max; p++)
-        {
-            if (isPrime[p])
-            {
-                primes.Add(p);
-                for (long i = (long)p * p; i <= max; i += p)
-                    isPrime[i] = false;
-            }
-        }
+        var jsonPrimes = JsonSerializer.Serialize(_primes);
+        JSRuntime.InvokeVoidAsync("localStorage.setItem", "primes", jsonPrimes);
     }
 
-    private (float x, float y) GetSpiralPosition(int number, float scale)
+    private class Size
     {
-        if (number == 1) return (0, 0);
+        public float Width { get; set; }
+        public float Height { get; set; }
+    }
 
-        int layer = (int)Math.Ceiling((Math.Sqrt(number) - 1) / 2);
-        int legLength = 2 * layer;
-        int maxLayerValue = (2 * layer + 1) * (2 * layer + 1);
-        int offset = maxLayerValue - number;
-
-        int x = 0, y = 0;
-        if (offset < legLength) // Top
-        {
-            x = layer - offset;
-            y = layer;
-        }
-        else if (offset < 2 * legLength) // Left
-        {
-            x = -layer;
-            y = layer - (offset - legLength);
-        }
-        else if (offset < 3 * legLength) // Bottom
-        {
-            x = -layer + (offset - 2 * legLength);
-            y = -layer;
-        }
-        else // Right
-        {
-            x = layer;
-            y = -layer + (offset - 3 * legLength);
-        }
-
-        return (x * scale, y * scale);
+    public void Dispose()
+    {
+        ThemeService.OnDarkModeChanged -= HandleDarkModeChanged;
+        ThemeService.OnDebugModeChanged -= HandleDebugModeChanged;
     }
 }
