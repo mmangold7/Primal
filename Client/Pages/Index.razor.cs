@@ -17,11 +17,12 @@ public partial class Index
     private float _zoomScale = 1f;
     private SKPoint _lastMousePosition;
     private SKPoint _currentPanOffset = new(0, 0);
-    private const float SquareSize = 1;
+    private const int SquareSize = 1;
     private float _canvasWidth;
     private float _canvasHeight;
     private SKCanvasView? _drawingCanvas;
     private SKBitmap? _spiralBitmap;
+    private SKImageInfo _spiralBitmapInfo;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -32,7 +33,7 @@ public partial class Index
             _canvasHeight = size.Height;
 
             SetInitialZoomLevel(size.Height);
-            CreateSpiralBitmap(_maxNumber, _zoomScale);
+            CreateSpiralBitmap(_maxNumber);
             CenterSpiralOnCanvas(size.Width, size.Height);
 
             StateHasChanged();
@@ -78,7 +79,7 @@ public partial class Index
         }
     }
 
-    private (float x, float y) GetSpiralPosition(int number, float scale)
+    private (float x, float y) GetSpiralPosition(int number)
     {
         if (number == 1) return (0, 0);
 
@@ -109,15 +110,14 @@ public partial class Index
             y = -layer + (offset - 3 * legLength);
         }
 
-        return (x * scale, y * scale);
+        return (x, y);
     }
 
     private void CenterSpiralOnCanvas(float canvasWidth, float canvasHeight)
     {
-        int spiralSize = CalculateRequiredBitmapSize(_maxNumber, _zoomScale);
         _currentPanOffset = new SKPoint(
-            (canvasWidth - spiralSize * _zoomScale) / 2,
-            (canvasHeight - spiralSize * _zoomScale) / 2
+            (canvasWidth - _spiralBitmapInfo.Width * _zoomScale) / 2,
+            (canvasHeight - _spiralBitmapInfo.Height * _zoomScale) / 2
         );
     }
 
@@ -128,34 +128,32 @@ public partial class Index
         _zoomScale = canvasHeight / totalHeightOfBlocks;
     }
 
-    private int CalculateRequiredBitmapSize(int maxNumber, float scale)
+    private int CalculateRequiredBitmapSideLength(int maxNumber)
     {
         // Rough estimation of the spiral size
         var maxLayer = (int)Math.Ceiling((Math.Sqrt(maxNumber) - 1) / 2);
         var size = 2 * maxLayer + 1; // Number of squares per side
-        return (int)(size * scale);
+        return size * SquareSize;
     }
 
-    private void CreateSpiralBitmap(int maxNumber, float scale)
+    private void CreateSpiralBitmap(int maxNumber)
     {
-        int bitmapSize = CalculateRequiredBitmapSize(maxNumber, scale);
-        _spiralBitmap = new SKBitmap(bitmapSize, bitmapSize);
+        int bitmapSideLength = CalculateRequiredBitmapSideLength(maxNumber);
+        _spiralBitmap = new SKBitmap(bitmapSideLength, bitmapSideLength);
+        _spiralBitmapInfo = _spiralBitmap.Info;
+        var center = bitmapSideLength / 2;
 
         using (var canvas = new SKCanvas(_spiralBitmap))
         {
-            //var backgroundColor = ThemeService.IsDarkMode 
-            //    ? new SKColor(50, 51, 61, 1) 
-            //    : SKColors.White;
-
             canvas.Clear(SKColors.Transparent);
             var primePaint = new SKPaint { Color = SKColors.Black, IsAntialias = true, Style = SKPaintStyle.Fill };
             var nonPrimePaint = new SKPaint { Color = SKColors.Transparent, IsAntialias = true, Style = SKPaintStyle.Fill };
 
             for (int i = 1; i <= maxNumber; i++)
             {
-                var (x, y) = GetSpiralPosition(i, scale);
-                var rect = new SKRect(x + bitmapSize / 2, y + bitmapSize / 2,
-                    x + scale + bitmapSize / 2, y + scale + bitmapSize / 2);
+                var (x, y) = GetSpiralPosition(i);
+                var rect = new SKRect(x + center, y + center,
+                    x + SquareSize + center, y + SquareSize + center);
 
                 var paint = _primes.Contains(i) ? primePaint : nonPrimePaint;
                 canvas.DrawRect(rect, paint);
