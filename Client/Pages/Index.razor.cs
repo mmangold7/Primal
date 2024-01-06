@@ -1,5 +1,4 @@
-﻿using CsvHelper.Configuration.Attributes;
-using Microsoft.AspNetCore.Components.Web;
+﻿using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using MudBlazor;
 using SkiaSharp;
@@ -9,7 +8,8 @@ namespace Primal.Client.Pages;
 
 public partial class Index
 {
-    private readonly int _maxPrimeForBitmap = 4000000;
+    private int upscaleFactor = 1;
+    private readonly int _maxPrimeForBitmap = 16000000;
     private HashSet<int> _primes = new();
     private bool _isDebugModeEnabled = true;
     private string _debugText = "";
@@ -87,25 +87,9 @@ public partial class Index
     {
         await base.OnInitializedAsync();
 
-        //var csvContent = await LoadMillionPrimesCsv();
-        //using (var reader = new StringReader(csvContent))
-        //using (var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
-        //{
-        //    HasHeaderRecord = false
-        //}))
-        //{
-        //    await foreach (var record in csv.GetRecordsAsync<PrimeCsvRecord>())
-        //    {
-        //        _primes.Add(record.Value);
-        //    }
-        //}
+        var csvContent = await Load10MillionPrimesBinary();
 
-        //var csvContent = await Load10MillionPrimesCsv();
-        //var primeStrings = csvContent.Split(',');
-
-        _csvContent = await Load10MillionPrimesBinary();
-
-        using (var memoryStream = new MemoryStream(_csvContent))
+        using (var memoryStream = new MemoryStream(csvContent))
         using (var binaryReader = new BinaryReader(memoryStream))
         {
             while (memoryStream.Position < memoryStream.Length)
@@ -114,21 +98,6 @@ public partial class Index
                 _primes.Add(prime);
             }
         }
-
-        // Assuming that each integer is 4 bytes (32 bits)
-
-        // Copy bytes into integers
-        //MemoryMarshal.Cast<byte, int>(new ReadOnlySpan<byte>(csvContent)).CopyTo(primes);
-
-
-        //GeneratePrimesUpTo(_maxNumber);
-
-        //var loaded = await LoadPrimesFromLocal();
-        //if (!loaded)
-        //{
-        //    GeneratePrimesUpTo(_maxNumber);
-        //    SavePrimesToLocal();
-        //}
 
         ThemeService.OnDarkModeChanged += HandleDarkModeChanged;
         ThemeService.OnDebugModeChanged += HandleDebugModeChanged;
@@ -208,18 +177,14 @@ public partial class Index
 
     private void SetInitialZoomLevel(float canvasHeight)
     {
-        int desiredBlocksVisible = 20; // Number of blocks to show
-        float totalHeightOfBlocks = desiredBlocksVisible * SquareSize; // Total height of the blocks
+        var desiredBlocksVisible = 100;
+        float totalHeightOfBlocks = desiredBlocksVisible * SquareSize;
         _zoomScale = canvasHeight / totalHeightOfBlocks;
     }
 
     private void CreateSpiralBitmap()
     {
-        //var integers = MemoryMarshal.Cast<byte, int>(_csvContent);
-        //var array = integers.ToArray();
-        //_primes = new HashSet<int>(array);
-
-        var biggestPrime = _primes.Max();
+        var biggestPrime = _primes.Last();
         if (biggestPrime > _maxPrimeForBitmap)
             biggestPrime = _maxPrimeForBitmap;
         var maxLayer = (int)Math.Ceiling((Math.Sqrt(biggestPrime) - 1) / 2);
@@ -239,26 +204,9 @@ public partial class Index
             var (x, y) = GetSpiralPosition(i);
             var rect = new SKRect(x + center, y + center, x + SquareSize + center, y + SquareSize + center);
             var rectPaint = _primes.Contains(i) ? primePaint : nonPrimePaint;
-
-            lock (canvas)
-            {
-                canvas.DrawRect(rect, rectPaint);
-            }
+            lock (canvas) { canvas.DrawRect(rect, rectPaint); }
         });
-
-        //for (var i = 1; i <= biggestPrime; i++)
-        //{
-        //    var (x, y) = GetSpiralPosition(i);
-        //    var rect = new SKRect(x + center, y + center, x + SquareSize + center, y + SquareSize + center);
-        //    var rectPaint = _primes.Contains(i) ? primePaint : nonPrimePaint; // should be fast since _primes is a HashSet, I think?
-        //    canvas.DrawRect(rect, rectPaint);
-        //}
     }
-
-    //var smallerMax = _maxPrimeForBitmap < biggestPrime ? _maxPrimeForBitmap : biggestPrime;
-
-    private int upscaleFactor = 1;
-    private byte[] _csvContent;
 
     private async Task GenerateBlobUrl(byte[]? imageData)
     {
@@ -283,23 +231,19 @@ public partial class Index
 
     public SKBitmap ScaleBitmap(SKBitmap originalBitmap, int scaleFactor)
     {
-        // Calculate the new dimensions
         int newWidth = originalBitmap.Width * scaleFactor;
         int newHeight = originalBitmap.Height * scaleFactor;
 
-        // Create a new bitmap with the larger size
         var scaledBitmap = new SKBitmap(newWidth, newHeight);
 
-        // Create a canvas for the new bitmap and set the nearest-neighbor scaling
         using (var canvas = new SKCanvas(scaledBitmap))
         {
-            canvas.Clear(SKColors.Transparent); // Or any background color you want
+            canvas.Clear(SKColors.Transparent);
             var paint = new SKPaint
             {
-                FilterQuality = SKFilterQuality.High // Nearest-neighbor scaling
+                FilterQuality = SKFilterQuality.High
             };
 
-            // Draw the original bitmap onto the canvas with scaling
             canvas.DrawBitmap(originalBitmap, new SKRect(0, 0, newWidth, newHeight), paint);
         }
 
@@ -363,10 +307,8 @@ public partial class Index
         var oldZoomScale = _zoomScale;
         _zoomScale *= e.DeltaY < 0 ? 1.2f : 0.8f;
 
-        // Calculate the change in scale
         float scaleChange = _zoomScale / oldZoomScale;
 
-        // Adjust the pan offset to maintain the center of the view
         _currentPanOffset.X = (_currentPanOffset.X - _canvasWidth / 2) * scaleChange + _canvasWidth / 2;
         _currentPanOffset.Y = (_currentPanOffset.Y - _canvasHeight / 2) * scaleChange + _canvasHeight / 2;
 
@@ -393,39 +335,10 @@ public partial class Index
         }
     }
 
-    //private async Task<bool> LoadPrimesFromLocal()
-    //{
-    //    var jsonPrimes = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "primes");
-    //    if (!string.IsNullOrEmpty(jsonPrimes))
-    //    {
-    //        _primes = JsonSerializer.Deserialize<List<int>>(jsonPrimes);
-    //        return (_primes.Last() >= _maxNumber);
-    //    }
-    //    return false;
-    //}
-
-    //private void SavePrimesToLocal()
-    //{
-    //    var jsonPrimes = JsonSerializer.Serialize(_primes);
-    //    JSRuntime.InvokeVoidAsync("localStorage.setItem", "primes", jsonPrimes);
-    //}
-
     private class Size
     {
         public float Width { get; set; }
         public float Height { get; set; }
-    }
-
-    public class PrimeCsvRecord
-    {
-        [Index(0)]
-        public int Ordinality { get; set; }
-
-        [Index(1)]
-        public int Value { get; set; }
-
-        [Index(2)]
-        public int Difference { get; set; }
     }
 
     public void Dispose()
