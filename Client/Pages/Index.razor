@@ -61,6 +61,16 @@
     {
         <div class="debug-overlay">@_debugText</div>
     }
+    
+    <MudDialog @ref="SaveDialog">
+        <TitleContent>Exported Image Link</TitleContent>
+        <DialogContent>
+            <a href="@PixelizedImageBlobLocation" download="@DownloadFileName">Download Image</a>
+        </DialogContent>
+        <DialogActions>
+            <MudButton Color="Color.Primary" OnClick="CloseDialog">Ok</MudButton>
+        </DialogActions>
+    </MudDialog>
 </MudContainer>
 
 @* <MudFab OnClick="@ToggleTools" Style="position: fixed; top: 88px; left: 24px;" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Build" /> *@

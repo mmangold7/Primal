@@ -14,6 +14,7 @@
 
         <MudHidden Breakpoint="Breakpoint.MdAndDown">
             <MudButtonGroup Edge="Edge.End">
+                <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.Save" OnClick="SaveActualImage" />
                 <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.BugReport" OnClick="ToggleDebugMode" />
                 <MudIconButton Color="Color.Inherit" Icon="@(ThemeService.IsDarkMode ? Icons.Material.Filled.Brightness7 : Icons.Material.Filled.Brightness4)" OnClick="@ToggleDarkMode"/>
             </MudButtonGroup>
@@ -41,5 +42,10 @@
     void ToggleDarkMode()
     {
         ThemeService.IsDarkMode = !ThemeService.IsDarkMode;
+    }
+
+    private void SaveActualImage()
+    {
+        ThemeService.SaveImage();
     }
 }

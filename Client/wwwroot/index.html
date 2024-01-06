@@ -41,6 +41,25 @@
                 height: element.offsetHeight
             };
         };
+        window.loadEmbeddedCSV = function (filePath) {
+            return fetch(filePath)
+                .then(response => response.text());
+        }
+        window.loadBinaryFile = function (filePath) {
+            return fetch(filePath)
+                .then(response => response.arrayBuffer())
+                .then(buffer => {
+                    return new Uint8Array(buffer);
+                });
+        }
+        window.createBlobUrl = function (data, mimeType, filename) {
+            var blob = new Blob([data], { type: mimeType });
+            var url = URL.createObjectURL(blob);
+            return url + '#' + encodeURIComponent(filename); // Append filename as fragment
+        };
+        window.revokeBlobUrl = function revokeBlobUrl(url) {
+            URL.revokeObjectURL(url);
+        };
     </script>
 </body>
 

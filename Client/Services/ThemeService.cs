@@ -35,4 +35,10 @@ public class ThemeService
 
     public event EventHandler OnDarkModeChanged;
     public event EventHandler OnDebugModeChanged;
+    public event EventHandler SaveImageClicked;
+
+    public void SaveImage()
+    {
+        SaveImageClicked?.Invoke(this, EventArgs.Empty);
+    }
 }
