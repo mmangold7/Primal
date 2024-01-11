@@ -47,21 +47,41 @@
             z-index: 10;
         }
     </style>
+    @*
+    @if (_isLoading)
+    {
+    <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+    } *@
 
-    <SKCanvasView 
-        id="canvasElementId"
-        @ref="_drawingCanvas"
-        @onmousewheel="OnMouseWheel"
-        @onmousedown="OnMouseDown"
-        @onmousemove="OnMouseMove"
-        IgnorePixelScaling="true"
-        OnPaintSurface="DrawNextCanvasFrame" />
-    
+    <ProgressIndicator Hidden="@(!_isLoading)" Progress="@PixelizationPercentComplete"></ProgressIndicator>
+
+    <SKCanvasView id="canvasElementId"
+                  Hidden="@(_isLoading)"
+    @ref="_drawingCanvas"
+    @onmousewheel="OnMouseWheel"
+    @onmousedown="OnMouseDown"
+    @onmousemove="OnMouseMove"
+                  IgnorePixelScaling="true"
+                  OnPaintSurface="DrawNextCanvasFrame" />
+
     @if (_isDebugModeEnabled)
     {
         <div class="debug-overlay">@_debugText</div>
     }
-    
+
+    <MudDrawer @bind-Open="@ToolsOpen" Anchor="Anchor.Right" Elevation="0" Variant="@DrawerVariant.Persistent" ClipMode="DrawerClipMode.Always">
+        <MudDrawerHeader Style="padding-bottom: 0; min-height: unset;">
+            <MudText Typo="Typo.h6">Tools</MudText>
+        </MudDrawerHeader>
+
+        <MudList>
+            <MudListItem>
+                <MudTextField Label="Enter Max Prime" @bind-Value="_maxPrimeInput" />
+                <MudButton OnClick="DrawSpiralFromMaxValue">Generate</MudButton>
+            </MudListItem>
+        </MudList>
+    </MudDrawer>
+
     <MudDialog @ref="SaveDialog">
         <TitleContent>Exported Image Link</TitleContent>
         <DialogContent>
@@ -72,13 +92,3 @@
         </DialogActions>
     </MudDialog>
 </MudContainer>
-
-@* <MudFab OnClick="@ToggleTools" Style="position: fixed; top: 88px; left: 24px;" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Build" /> *@
-
-
-@*     <MudDrawer @bind-Open="@ToolsOpen" Anchor="Anchor.Right" Elevation="0" Variant="@DrawerVariant.Persistent" ClipMode="DrawerClipMode.Always">
-        <MudDrawerHeader Style="padding-bottom: 0; min-height: unset;">
-            <MudText Typo="Typo.h6">Tools</MudText>
-        </MudDrawerHeader>
-
-    </MudDrawer> *@

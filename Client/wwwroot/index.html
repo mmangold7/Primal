@@ -52,6 +52,27 @@
                     return new Uint8Array(buffer);
                 });
         }
+        window.loadBitmapFile = function (filePath) {
+            return fetch(filePath)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.blob();
+                })
+                .then(blob => {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            let base64String = reader.result;
+                            base64String = base64String.replace(/^data:.+;base64,/, ''); // Remove the prefix
+                            resolve(base64String);
+                        };
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                });
+        }
         window.createBlobUrl = function (data, mimeType, filename) {
             var blob = new Blob([data], { type: mimeType });
             var url = URL.createObjectURL(blob);

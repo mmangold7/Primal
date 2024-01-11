@@ -4,7 +4,7 @@ namespace Primal.Client.Services;
 
 public class ThemeService
 {
-    public MudTheme CurrentTheme { get; } = new();
+    public static MudTheme CurrentTheme { get; } = new();
     private bool _isDarkMode = true;
     private bool _isDebugMode = true;
     public bool IsDarkMode
@@ -36,9 +36,16 @@ public class ThemeService
     public event EventHandler OnDarkModeChanged;
     public event EventHandler OnDebugModeChanged;
     public event EventHandler SaveImageClicked;
+    public event EventHandler? ToolsToggled;
 
     public void SaveImage()
     {
         SaveImageClicked?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void ToggleTools()
+    {
+        var handler = ToolsToggled;
+        handler?.Invoke(this, EventArgs.Empty);
     }
 }

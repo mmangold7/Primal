@@ -8,9 +8,6 @@ namespace Primal.Client.Pages;
 
 public partial class Index
 {
-    private int upscaleFactor = 1;
-    private readonly int _maxPrimeForBitmap = 16000000;
-    private HashSet<int> _primes = new();
     private bool _isDebugModeEnabled = true;
     private string _debugText = "";
     private float _zoomScale = 1f;
@@ -22,10 +19,14 @@ public partial class Index
     private SKCanvasView? _drawingCanvas;
     private SKBitmap? _spiralBitmap;
     private SKImageInfo _spiralBitmapInfo;
+    private int _maxPrimeInput = 10000;
+    private bool _isLoading;
 
+    private bool ToolsOpen { get; set; } = true;
     private string? PixelizedImageBlobLocation { get; set; }
     private string? DownloadFileName { get; set; }
     private MudDialog SaveDialog { get; set; }
+    public double PixelizationPercentComplete { get; set; }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -35,51 +36,7 @@ public partial class Index
             _canvasWidth = size.Width;
             _canvasHeight = size.Height;
 
-            StateHasChanged();
-        }
-    }
-
-    private async Task<string> LoadMillionPrimesCsv()
-    {
-        try
-        {
-            var filePath = "data/P-1000000.txt";
-            var csvContent = await JSRuntime.InvokeAsync<string>("loadEmbeddedCSV", filePath);
-            return csvContent;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading CSV: {ex.Message}");
-            return "";
-        }
-    }
-
-    private async Task<string> Load10MillionPrimesCsv()
-    {
-        try
-        {
-            var filePath = "data/50_million_primes_0.csv";
-            var csvContent = await JSRuntime.InvokeAsync<string>("loadEmbeddedCSV", filePath);
-            return csvContent;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading CSV: {ex.Message}");
-            return "";
-        }
-    }
-
-    private async Task<byte[]> Load10MillionPrimesBinary()
-    {
-        try
-        {
-            var filePath = "data/50_million_primes_try3_0.bin";
-            return await JSRuntime.InvokeAsync<byte[]>("loadBinaryFile", filePath);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading binary file: {ex.Message}");
-            return Array.Empty<byte>();
+            await DrawSpiralFromMaxValue();
         }
     }
 
@@ -87,84 +44,74 @@ public partial class Index
     {
         await base.OnInitializedAsync();
 
-        var csvContent = await Load10MillionPrimesBinary();
-
-        using (var memoryStream = new MemoryStream(csvContent))
-        using (var binaryReader = new BinaryReader(memoryStream))
-        {
-            while (memoryStream.Position < memoryStream.Length)
-            {
-                var prime = binaryReader.ReadInt32();
-                _primes.Add(prime);
-            }
-        }
-
+        ThemeService.ToolsToggled += ToggleTools;
         ThemeService.OnDarkModeChanged += HandleDarkModeChanged;
         ThemeService.OnDebugModeChanged += HandleDebugModeChanged;
         ThemeService.SaveImageClicked += HandleSaveImage;
+    }
 
-        CreateSpiralBitmap();
+    private async Task DrawSpiralFromMaxValue()
+    {
+        _isLoading = true;
+        StateHasChanged();
+        _spiralBitmap = await GenerateSpiralFromScratch(_maxPrimeInput);
+        _spiralBitmapInfo = _spiralBitmap.Info;
+        _isLoading = false;
+
         SetInitialZoomLevel(_canvasHeight);
         CenterSpiralOnCanvas(_canvasWidth, _canvasHeight);
+        await TriggerUiCanvasRedraw();
+    }
+
+    private void ToggleTools(object? sender, EventArgs e)
+    {
+        ToolsOpen = !ToolsOpen;
         StateHasChanged();
     }
 
-    private void GeneratePrimesUpTo(int max)
+    private async Task<SKBitmap> GenerateSpiralFromScratch(int? maxPrimeInput = null)
     {
-        bool[] isPrime = new bool[max + 1];
+        var primes = GeneratePrimesUpTo(maxPrimeInput ?? _maxPrimeInput);
+        return CreateSpiralBitmap(primes);
+    }
+
+    private HashSet<int> GeneratePrimesUpTo(int max)
+    {
+        var primes = new HashSet<int>();
+        var isPrime = new bool[max + 1];
         Array.Fill(isPrime, true);
         isPrime[0] = isPrime[1] = false;
 
-        for (int p = 2; p * p <= max; p++)
+        int totalNumbers = max - 1; // Exclude 0 and 1
+        int numbersProcessed = 0;
+
+        for (var p = 2; p * p <= max; p++)
         {
             if (isPrime[p])
             {
                 for (int i = p * p; i <= max; i += p)
-                    isPrime[i] = false;
+                {
+                    if (isPrime[i])
+                    {
+                        isPrime[i] = false;
+                        numbersProcessed++;
+                    }
+                }
+
+                // Update the completion percentage
+                PixelizationPercentComplete = (double)numbersProcessed / totalNumbers * 100;
             }
         }
 
-        for (int p = 2; p <= max; p++)
+        for (var p = 2; p <= max; p++)
         {
             if (isPrime[p])
             {
-                _primes.Add(p);
+                primes.Add(p);
             }
         }
-    }
 
-    private (float x, float y) GetSpiralPosition(int number)
-    {
-        if (number == 1) return (0, 0);
-
-        int layer = (int)Math.Ceiling((Math.Sqrt(number) - 1) / 2);
-        int legLength = 2 * layer;
-        int maxLayerValue = (2 * layer + 1) * (2 * layer + 1);
-        int offset = maxLayerValue - number;
-
-        int x = 0, y = 0;
-        if (offset < legLength) // Top
-        {
-            x = layer - offset;
-            y = layer;
-        }
-        else if (offset < 2 * legLength) // Left
-        {
-            x = -layer;
-            y = layer - (offset - legLength);
-        }
-        else if (offset < 3 * legLength) // Bottom
-        {
-            x = -layer + (offset - 2 * legLength);
-            y = -layer;
-        }
-        else // Right
-        {
-            x = layer;
-            y = -layer + (offset - 3 * legLength);
-        }
-
-        return (x, y);
+        return primes;
     }
 
     private void CenterSpiralOnCanvas(float canvasWidth, float canvasHeight)
@@ -182,37 +129,71 @@ public partial class Index
         _zoomScale = canvasHeight / totalHeightOfBlocks;
     }
 
-    private void CreateSpiralBitmap()
+    private SKBitmap CreateSpiralBitmap(HashSet<int> primes)
     {
-        var biggestPrime = _primes.Last();
-        if (biggestPrime > _maxPrimeForBitmap)
-            biggestPrime = _maxPrimeForBitmap;
-        var maxLayer = (int)Math.Ceiling((Math.Sqrt(biggestPrime) - 1) / 2);
-        var squaresPerSide = 2 * maxLayer + 1;
-        var bitmapSideLength = squaresPerSide * SquareSize;
+        var filteredPrimes = primes.ToList();
+        var biggestPrime = filteredPrimes.Max();
+        var bitmapSideLength = CalculateBitmapSideLength(biggestPrime);
         var center = bitmapSideLength / 2;
 
-        _spiralBitmap = new SKBitmap(bitmapSideLength, bitmapSideLength);
-        _spiralBitmapInfo = _spiralBitmap.Info;
-        using var canvas = new SKCanvas(_spiralBitmap);
+        var spiralBitmap = new SKBitmap(bitmapSideLength, bitmapSideLength);
+        using var canvas = new SKCanvas(spiralBitmap);
         canvas.Clear(SKColors.Transparent);
-        var primePaint = new SKPaint { Color = SKColors.Black, IsAntialias = false, Style = SKPaintStyle.Fill };
-        var nonPrimePaint = new SKPaint { Color = SKColors.Transparent, IsAntialias = false, Style = SKPaintStyle.Fill };
 
-        Parallel.For(1, biggestPrime + 1, i =>
+        var primePaint = CreateSpiralPaint(SKColors.Black);
+
+        Parallel.ForEach(filteredPrimes, prime =>
         {
-            var (x, y) = GetSpiralPosition(i);
-            var rect = new SKRect(x + center, y + center, x + SquareSize + center, y + SquareSize + center);
-            var rectPaint = _primes.Contains(i) ? primePaint : nonPrimePaint;
-            lock (canvas) { canvas.DrawRect(rect, rectPaint); }
+            var (x, y) = GetSpiralPosition(prime, center);
+            var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
+            lock (canvas) { canvas.DrawRect(rect, primePaint); }
         });
+
+        return spiralBitmap;
+    }
+
+    private int CalculateBitmapSideLength(int biggestPrime)
+    {
+        var maxLayer = (int)Math.Ceiling((Math.Sqrt(biggestPrime) - 1) / 2);
+        return (2 * maxLayer + 1) * SquareSize;
+    }
+
+    private static SKPaint CreateSpiralPaint(SKColor color) =>
+        new() { Color = color, IsAntialias = false, Style = SKPaintStyle.Fill };
+
+    private (float x, float y) GetSpiralPosition(int number, int center)
+    {
+        var (x, y) = GetSpiralCoordinates(number);
+        return (x * SquareSize + center, y * SquareSize + center);
+    }
+
+    private (float x, float y) GetSpiralCoordinates(int number)
+    {
+        if (number == 1) return (0, 0);
+
+        var layer = (int)Math.Ceiling((Math.Sqrt(number) - 1) / 2);
+        var maxLayerNumber = (2 * layer + 1) * (2 * layer + 1);
+        var sideLength = 2 * layer;
+        var stepsFromMax = maxLayerNumber - number;
+
+        var side = stepsFromMax / sideLength;
+        var positionOnSide = stepsFromMax % sideLength;
+
+        return side switch
+        {
+            0 => (layer - positionOnSide, layer),         // Top
+            1 => (-layer, layer - positionOnSide),        // Left
+            2 => (-layer + positionOnSide, -layer),       // Bottom
+            3 => (layer, -layer + positionOnSide),        // Right
+            _ => throw new InvalidOperationException()
+        };
     }
 
     private async Task GenerateBlobUrl(byte[]? imageData)
     {
         if (imageData != null)
         {
-            DownloadFileName = "ulamSpiral-" + _primes.Last() + ".png";
+            DownloadFileName = "ulamSpiral.png";
 
             PixelizedImageBlobLocation = await JSRuntime.InvokeAsync<string>(
                 "createBlobUrl", imageData, "image/png", DownloadFileName);
@@ -229,27 +210,6 @@ public partial class Index
         }
     }
 
-    public SKBitmap ScaleBitmap(SKBitmap originalBitmap, int scaleFactor)
-    {
-        int newWidth = originalBitmap.Width * scaleFactor;
-        int newHeight = originalBitmap.Height * scaleFactor;
-
-        var scaledBitmap = new SKBitmap(newWidth, newHeight);
-
-        using (var canvas = new SKCanvas(scaledBitmap))
-        {
-            canvas.Clear(SKColors.Transparent);
-            var paint = new SKPaint
-            {
-                FilterQuality = SKFilterQuality.High
-            };
-
-            canvas.DrawBitmap(originalBitmap, new SKRect(0, 0, newWidth, newHeight), paint);
-        }
-
-        return scaledBitmap;
-    }
-
     private async void DrawNextCanvasFrame(SKPaintSurfaceEventArgs args)
     {
         var canvas = args.Surface.Canvas;
@@ -264,33 +224,6 @@ public partial class Index
         await TriggerUiCanvasRedraw();
     }
 
-    private async Task TriggerUiCanvasRedraw()
-    {
-        _drawingCanvas?.Invalidate();
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private void HandleDarkModeChanged(object? sender, EventArgs e)
-    {
-        //might need to update a local variable related to the canvas?
-    }
-
-    private void UpdateDebugText()
-    {
-        if (_isDebugModeEnabled)
-        {
-            _debugText = $"Pan: {_currentPanOffset}, Zoom: {_zoomScale}";
-            StateHasChanged();
-        }
-    }
-
-    private async void HandleDebugModeChanged(object? sender, EventArgs e)
-    {
-        _isDebugModeEnabled = ThemeService.IsDebugMode;
-        UpdateDebugText();
-        await TriggerUiCanvasRedraw();
-    }
-
     private async void HandleSaveImage(object? sender, EventArgs e)
     {
         if (_spiralBitmap == null) return;
@@ -301,7 +234,7 @@ public partial class Index
         await GenerateBlobUrl(imageData);
         SaveDialog.Show();
     }
-    
+
     private void OnMouseWheel(WheelEventArgs e)
     {
         var oldZoomScale = _zoomScale;
@@ -335,6 +268,33 @@ public partial class Index
         }
     }
 
+    private async Task TriggerUiCanvasRedraw()
+    {
+        _drawingCanvas?.Invalidate();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleDarkModeChanged(object? sender, EventArgs e)
+    {
+        //might need to update a local variable related to the canvas?
+    }
+
+    private void UpdateDebugText()
+    {
+        if (_isDebugModeEnabled)
+        {
+            _debugText = $"Pan: {_currentPanOffset}, Zoom: {_zoomScale}";
+            StateHasChanged();
+        }
+    }
+
+    private async void HandleDebugModeChanged(object? sender, EventArgs e)
+    {
+        _isDebugModeEnabled = ThemeService.IsDebugMode;
+        UpdateDebugText();
+        await TriggerUiCanvasRedraw();
+    }
+
     private class Size
     {
         public float Width { get; set; }
@@ -347,4 +307,100 @@ public partial class Index
         ThemeService.OnDebugModeChanged -= HandleDebugModeChanged;
         ThemeService.SaveImageClicked -= HandleSaveImage;
     }
+
+
 }
+
+//private int upscaleFactor = 1;
+//public SKBitmap ScaleBitmap(SKBitmap originalBitmap, int scaleFactor)
+//{
+//    int newWidth = originalBitmap.Width * scaleFactor;
+//    int newHeight = originalBitmap.Height * scaleFactor;
+
+//    var scaledBitmap = new SKBitmap(newWidth, newHeight);
+
+//    using (var canvas = new SKCanvas(scaledBitmap))
+//    {
+//        canvas.Clear(SKColors.Transparent);
+//        var paint = new SKPaint
+//        {
+//            FilterQuality = SKFilterQuality.High
+//        };
+
+//        canvas.DrawBitmap(originalBitmap, new SKRect(0, 0, newWidth, newHeight), paint);
+//    }
+
+//    return scaledBitmap;
+//}
+
+//private async Task<string> LoadMillionPrimesCsv()
+//{
+//    try
+//    {
+//        var filePath = "data/P-1000000.txt";
+//        var csvContent = await JSRuntime.InvokeAsync<string>("loadEmbeddedCSV", filePath);
+//        return csvContent;
+//    }
+//    catch (Exception ex)
+//    {
+//        Console.WriteLine($"Error loading CSV: {ex.Message}");
+//        return "";
+//    }
+//}
+
+//private async Task<string> Load10MillionPrimesCsv()
+//{
+//    try
+//    {
+//        var filePath = "data/50_million_primes_0.csv";
+//        var csvContent = await JSRuntime.InvokeAsync<string>("loadEmbeddedCSV", filePath);
+//        return csvContent;
+//    }
+//    catch (Exception ex)
+//    {
+//        Console.WriteLine($"Error loading CSV: {ex.Message}");
+//        return "";
+//    }
+//}
+
+//private async Task<SKBitmap> CreateNewSpiralBitmapFromBinaryFile()
+//{
+//    var csvContent = await JSRuntime.InvokeAsync<byte[]>("loadBinaryFile", "data/50_million_primes_try3_0.bin");
+
+//    using (var memoryStream = new MemoryStream(csvContent))
+//    using (var binaryReader = new BinaryReader(memoryStream))
+//    {
+//        while (memoryStream.Position < memoryStream.Length)
+//        {
+//            var prime = binaryReader.ReadInt32();
+//            _primes.Add(prime);
+//        }
+//    }
+
+//    return CreateSpiralBitmap();
+//}
+
+//private async Task<SKBitmap> LoadPreGeneratedSpiral()
+//{
+//    var base64String = await JSRuntime.InvokeAsync<string>("loadBitmapFile", "data/ulamSpiral-179424673.png");
+//    var bitmapData = Convert.FromBase64String(base64String);
+//    return SKBitmap.Decode(bitmapData);
+//}
+
+//private async Task LoadSelectedPreGeneratedSpiral()
+//{
+//    if (!string.IsNullOrWhiteSpace(selectedPreGeneratedSpiral))
+//    {
+//        _isLoading = true;
+//        var base64String = await JSRuntime.InvokeAsync<string>("loadBitmapFile", selectedPreGeneratedSpiral);
+//        var bitmapData = Convert.FromBase64String(base64String);
+//        _spiralBitmap = SKBitmap.Decode(bitmapData);
+//        _spiralBitmapInfo = _spiralBitmap.Info;
+
+//        SetInitialZoomLevel(_canvasHeight);
+//        CenterSpiralOnCanvas(_canvasWidth, _canvasHeight);
+
+//        _isLoading = false;
+//        await TriggerUiCanvasRedraw();
+//    }
+//}

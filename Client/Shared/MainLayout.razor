@@ -15,16 +15,19 @@
         <MudHidden Breakpoint="Breakpoint.MdAndDown">
             <MudButtonGroup Edge="Edge.End">
                 <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.Save" OnClick="SaveActualImage" />
-                <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.BugReport" OnClick="ToggleDebugMode" />
-                <MudIconButton Color="Color.Inherit" Icon="@(ThemeService.IsDarkMode ? Icons.Material.Filled.Brightness7 : Icons.Material.Filled.Brightness4)" OnClick="@ToggleDarkMode"/>
+                @* <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.BugReport" OnClick="ToggleDebugMode" /> *@
+                <MudIconButton Color="Color.Inherit" Icon="@(ThemeService.IsDarkMode ? Icons.Material.Filled.Brightness7 : Icons.Material.Filled.Brightness4)" OnClick="@ToggleDarkMode" />
+                <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.Build" OnClick="@ToggleTools" />
             </MudButtonGroup>
         </MudHidden>
 
         <MudHidden Breakpoint="Breakpoint.LgAndUp">
             <!-- Dropdown menu for smaller screens -->
             <MudMenu Icon="@Icons.Material.Filled.MoreVert" Direction="Direction.Bottom">
-                <MudMenuItem OnClick="@ToggleDebugMode">Toggle Debug Mode</MudMenuItem>
+                <MudMenuItem OnClick="@SaveActualImage">Save Image</MudMenuItem>
+                @* <MudMenuItem OnClick="@ToggleDebugMode">Toggle Debug Mode</MudMenuItem> *@
                 <MudMenuItem OnClick="@ToggleDarkMode">Toggle Dark Mode</MudMenuItem>
+                <MudMenuItem OnClick="@ToggleTools">Toggle Tools</MudMenuItem>
             </MudMenu>
         </MudHidden>
     </MudAppBar>
@@ -47,5 +50,10 @@
     private void SaveActualImage()
     {
         ThemeService.SaveImage();
+    }
+
+    private void ToggleTools()
+    {
+        ThemeService.ToggleTools();
     }
 }

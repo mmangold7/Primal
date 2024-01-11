@@ -1,0 +1,43 @@
+﻿@using System.Globalization
+@using Primal.Client.Services
+
+<style type="text/css">
+    .custom-loading-progress {
+        position: relative;
+        display: block;
+        width: 8rem;
+        height: 8rem;
+        margin: 35vh auto;
+    }
+
+        .custom-loading-progress circle {
+            fill: none;
+            stroke-width: 0.6rem;
+            transform-origin: 50% 50%;
+            transform: rotate(-90deg);
+        }
+
+    .custom-loading-progress-text {
+        position: absolute;
+        text-align: center;
+        font-weight: bold;
+        inset: 3rem;
+    }
+</style>
+
+<div style="position: relative; height: 100%; width: 100%" hidden="@Hidden">
+    <svg class="custom-loading-progress" xmlns="http://www.w3.org/2000/svg">
+        <circle r="40%" cx="50%" cy="50%" style="stroke:@ThemeService.CurrentTheme.Palette.Primary; stroke-dasharray:@StrokeDashArrayValue(), 500%;" />
+    </svg>
+    <div class="custom-loading-progress-text">@($"{Progress:P0}")</div>
+</div>
+
+@code {
+    [Parameter] public bool Hidden { get; set; }
+
+    [Parameter] public double Progress { get; set; }
+
+    float ArrayValue => (float)(3.1416 * Progress * 100.0);
+
+    private string StrokeDashArrayValue() => ArrayValue.ToString(CultureInfo.InvariantCulture);
+}
