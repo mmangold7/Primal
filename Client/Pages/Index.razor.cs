@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using MudBlazor;
+using MudBlazor.Utilities;
 using SkiaSharp;
 using SkiaSharp.Views.Blazor;
 
@@ -8,12 +9,12 @@ namespace Primal.Client.Pages;
 
 public partial class Index
 {
-    private bool _isDebugModeEnabled = true;
+    private bool _isDebugModeEnabled = false;
     private string _debugText = "";
     private float _zoomScale = 1f;
     private SKPoint _lastMousePosition;
     private SKPoint _currentPanOffset = new(0, 0);
-    private const int SquareSize = 1;
+    private const int SquareSize = 30;
     private float _canvasWidth;
     private float _canvasHeight;
     private SKCanvasView? _drawingCanvas;
@@ -21,12 +22,50 @@ public partial class Index
     private SKImageInfo _spiralBitmapInfo;
     private int _maxPrimeInput = 10000;
     private bool _isLoading;
+    private MudColor _primeColor = "#000000";
+    private MudColor _compositeBackgroundColor = "#FFFFFF";
+    private MudColor _spiralLineColor = "#00FF00";
+    private MudColor _gridLinesColor = "#000000";
+    private MudColor _numbersTextColor = "#00CC00";
 
     private bool ToolsOpen { get; set; } = true;
-    private string? PixelizedImageBlobLocation { get; set; }
+    private string? ImageDownloadBlobLocation { get; set; }
     private string? DownloadFileName { get; set; }
-    private MudDialog SaveDialog { get; set; }
-    public double PixelizationPercentComplete { get; set; }
+    private MudDialog? SaveDialog { get; set; }
+    public double SpiralGenerationPercentComplete { get; set; }
+    private CancellationTokenSource _generationCancel = new();
+
+    private async Task ReGenerate()
+    {
+        CancelGeneration();
+        _generationCancel = new CancellationTokenSource();
+        var cancellationToken = _generationCancel.Token;
+
+        _isLoading = true;
+        Task.Run(() => Generate(cancellationToken), cancellationToken);
+        _isLoading = false;
+
+        await TriggerUiCanvasRedraw();
+    }
+
+    private void Generate(CancellationToken cancellationToken)
+    {
+        var primes = GeneratePrimesUpTo(_maxPrimeInput, cancellationToken);
+        //_spiralBitmap = CreateSpiralBitmap(primes, cancellationToken);
+        _spiralBitmap = CreateSpiralBitmapWithIndicators(primes, cancellationToken);
+        _spiralBitmapInfo = _spiralBitmap.Info;
+        SetInitialZoomLevel(_canvasHeight);
+        CenterSpiralOnCanvas(_canvasWidth, _canvasHeight);
+    }
+
+    private void CancelGeneration()
+    {
+        if (_generationCancel != null)
+        {
+            _generationCancel.Cancel();
+            _generationCancel.Dispose();
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -35,8 +74,7 @@ public partial class Index
             var size = await JSRuntime.InvokeAsync<Size>("getElementSize", "canvasElementId");
             _canvasWidth = size.Width;
             _canvasHeight = size.Height;
-
-            await DrawSpiralFromMaxValue();
+            await ReGenerate();
         }
     }
 
@@ -50,60 +88,27 @@ public partial class Index
         ThemeService.SaveImageClicked += HandleSaveImage;
     }
 
-    private async Task DrawSpiralFromMaxValue()
-    {
-        _isLoading = true;
-        StateHasChanged();
-        _spiralBitmap = await GenerateSpiralFromScratch(_maxPrimeInput);
-        _spiralBitmapInfo = _spiralBitmap.Info;
-        _isLoading = false;
-
-        SetInitialZoomLevel(_canvasHeight);
-        CenterSpiralOnCanvas(_canvasWidth, _canvasHeight);
-        await TriggerUiCanvasRedraw();
-    }
-
-    private void ToggleTools(object? sender, EventArgs e)
-    {
-        ToolsOpen = !ToolsOpen;
-        StateHasChanged();
-    }
-
-    private async Task<SKBitmap> GenerateSpiralFromScratch(int? maxPrimeInput = null)
-    {
-        var primes = GeneratePrimesUpTo(maxPrimeInput ?? _maxPrimeInput);
-        return CreateSpiralBitmap(primes);
-    }
-
-    private HashSet<int> GeneratePrimesUpTo(int max)
+    private HashSet<int> GeneratePrimesUpTo(int max, CancellationToken cancellationToken)
     {
         var primes = new HashSet<int>();
         var isPrime = new bool[max + 1];
         Array.Fill(isPrime, true);
         isPrime[0] = isPrime[1] = false;
 
-        int totalNumbers = max - 1; // Exclude 0 and 1
-        int numbersProcessed = 0;
-
-        for (var p = 2; p * p <= max; p++)
+        for (int p = 2; p * p <= max; p++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (isPrime[p])
             {
                 for (int i = p * p; i <= max; i += p)
                 {
-                    if (isPrime[i])
-                    {
-                        isPrime[i] = false;
-                        numbersProcessed++;
-                    }
+                    isPrime[i] = false;
                 }
-
-                // Update the completion percentage
-                PixelizationPercentComplete = (double)numbersProcessed / totalNumbers * 100;
             }
         }
 
-        for (var p = 2; p <= max; p++)
+        for (int p = 2; p <= max; p++)
         {
             if (isPrime[p])
             {
@@ -129,7 +134,7 @@ public partial class Index
         _zoomScale = canvasHeight / totalHeightOfBlocks;
     }
 
-    private SKBitmap CreateSpiralBitmap(HashSet<int> primes)
+    private SKBitmap CreateSpiralBitmapWithIndicators(HashSet<int> primes, CancellationToken cancellationToken)
     {
         var filteredPrimes = primes.ToList();
         var biggestPrime = filteredPrimes.Max();
@@ -138,16 +143,72 @@ public partial class Index
 
         var spiralBitmap = new SKBitmap(bitmapSideLength, bitmapSideLength);
         using var canvas = new SKCanvas(spiralBitmap);
-        canvas.Clear(SKColors.Transparent);
+        canvas.Clear(FromMud(_compositeBackgroundColor));
 
-        var primePaint = CreateSpiralPaint(SKColors.Black);
+        var primePaint = CreateSpiralPaint(FromMud(_primeColor));
+        var linePaint = new SKPaint { Color = FromMud(_spiralLineColor), StrokeWidth = 1, IsAntialias = false, StrokeCap = SKStrokeCap.Square};
+        var gridPaint = new SKPaint { Color = FromMud(_gridLinesColor), IsStroke = true, StrokeWidth = 1, IsAntialias = false };
+        //var textPaint = new SKPaint
+        //{
+        //    Color = FromMud(_numbersTextColor),
+        //    TextSize = 10,
+        //    TextAlign = SKTextAlign.Center
+        //};
 
-        Parallel.ForEach(filteredPrimes, prime =>
+        SKPoint? lastPoint = null;
+
+        //prime squares
+        foreach (var prime in filteredPrimes)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var (x, y) = GetSpiralPosition(prime, center);
             var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
-            lock (canvas) { canvas.DrawRect(rect, primePaint); }
-        });
+
+            lock (canvas)
+            {
+                canvas.DrawRect(rect, primePaint);
+            }
+        }
+
+        //grid lines
+        for (int i = 1; i <= biggestPrime; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var (x, y) = GetSpiralPosition(i, center);
+            var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
+            lock (canvas)
+            {
+                canvas.DrawRect(rect, gridPaint);
+            }
+        }
+
+        //spiral line
+        for (int i = 1; i <= biggestPrime; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var (x, y) = GetSpiralPosition(i, center);
+            var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
+            var centerPoint = new SKPoint(rect.MidX, rect.MidY);
+
+            if (lastPoint.HasValue)
+            {
+                lock (canvas)
+                {
+                    canvas.DrawLine(lastPoint.Value, centerPoint, linePaint);
+                }
+            }
+            lastPoint = centerPoint;
+        }
+
+        //    // Draw Text Overlay
+        //    //lock (canvas)
+        //    //{
+        //    //    var text = i.ToString();
+        //    //    var textBounds = new SKRect();
+        //    //    textPaint.MeasureText(text, ref textBounds);
+        //    //    canvas.DrawText(text, rect.MidX, rect.MidY - textBounds.MidY, textPaint);
+        //    //}
 
         return spiralBitmap;
     }
@@ -195,7 +256,7 @@ public partial class Index
         {
             DownloadFileName = "ulamSpiral.png";
 
-            PixelizedImageBlobLocation = await JSRuntime.InvokeAsync<string>(
+            ImageDownloadBlobLocation = await JSRuntime.InvokeAsync<string>(
                 "createBlobUrl", imageData, "image/png", DownloadFileName);
         }
     }
@@ -203,16 +264,17 @@ public partial class Index
     private async Task CloseDialog()
     {
         SaveDialog.Close(DialogResult.Ok(true));
-        if (!string.IsNullOrEmpty(PixelizedImageBlobLocation))
+        if (!string.IsNullOrEmpty(ImageDownloadBlobLocation))
         {
-            await JSRuntime.InvokeVoidAsync("revokeBlobUrl", PixelizedImageBlobLocation);
-            PixelizedImageBlobLocation = "";
+            await JSRuntime.InvokeVoidAsync("revokeBlobUrl", ImageDownloadBlobLocation);
+            ImageDownloadBlobLocation = "";
         }
     }
 
     private async void DrawNextCanvasFrame(SKPaintSurfaceEventArgs args)
     {
         var canvas = args.Surface.Canvas;
+        //canvas.Clear(FromMud(_compositeBackgroundColor));
         canvas.Clear(SKColors.Transparent);
         var matrix = SKMatrix.CreateIdentity();
         matrix = matrix.PostConcat(SKMatrix.CreateScale(_zoomScale, _zoomScale));
@@ -279,6 +341,42 @@ public partial class Index
         //might need to update a local variable related to the canvas?
     }
 
+    private void ToggleTools(object? sender, EventArgs e)
+    {
+        ToolsOpen = !ToolsOpen;
+        StateHasChanged();
+    }
+
+    private void UpdatePrimeColor(string colorValue)
+    {
+        _primeColor = new MudColor(colorValue);
+        StateHasChanged();
+    }
+
+    private void UpdateBackgroundColor(string colorValue)
+    {
+        _compositeBackgroundColor = new MudColor(colorValue);
+        StateHasChanged();
+    }
+
+    private void UpdateSpiralLineColor(string colorValue)
+    {
+        _spiralLineColor = new MudColor(colorValue);
+        StateHasChanged();
+    }
+
+    private void UpdateGridLinesColor(string colorValue)
+    {
+        _gridLinesColor = new MudColor(colorValue);
+        StateHasChanged();
+    }
+
+    private void UpdateNumbersTextColor(string colorValue)
+    {
+        _numbersTextColor = new MudColor(colorValue);
+        StateHasChanged();
+    }
+
     private void UpdateDebugText()
     {
         if (_isDebugModeEnabled)
@@ -308,7 +406,7 @@ public partial class Index
         ThemeService.SaveImageClicked -= HandleSaveImage;
     }
 
-
+    private static SKColor FromMud(MudColor color) => new(color.R, color.G, color.B, color.A);
 }
 
 //private int upscaleFactor = 1;
@@ -403,4 +501,31 @@ public partial class Index
 //        _isLoading = false;
 //        await TriggerUiCanvasRedraw();
 //    }
+//}
+
+//private SKBitmap CreateSpiralBitmap(HashSet<int> primes, CancellationToken cancellationToken)
+//{
+//    var filteredPrimes = primes.ToList();
+//    var biggestPrime = filteredPrimes.Max();
+//    var bitmapSideLength = CalculateBitmapSideLength(biggestPrime);
+//    var center = bitmapSideLength / 2;
+
+//    var spiralBitmap = new SKBitmap(bitmapSideLength, bitmapSideLength);
+//    using var canvas = new SKCanvas(spiralBitmap);
+//    canvas.Clear(SKColors.Transparent);
+
+//    var primeColor = FromMud(_primeColor);
+//    var primePaint = CreateSpiralPaint(primeColor);
+
+//    Parallel.ForEach(filteredPrimes, new ParallelOptions { CancellationToken = cancellationToken }, prime =>
+//    {
+//        var (x, y) = GetSpiralPosition(prime, center);
+//        var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
+//        lock (canvas)
+//        {
+//            canvas.DrawRect(rect, primePaint);
+//        }
+//    });
+
+//    return spiralBitmap;
 //}

@@ -53,7 +53,7 @@
     <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
     } *@
 
-    <ProgressIndicator Hidden="@(!_isLoading)" Progress="@PixelizationPercentComplete"></ProgressIndicator>
+    <ProgressIndicator Hidden="@(!_isLoading)" Progress="@SpiralGenerationPercentComplete"></ProgressIndicator>
 
     <SKCanvasView id="canvasElementId"
                   Hidden="@(_isLoading)"
@@ -77,7 +77,46 @@
         <MudList>
             <MudListItem>
                 <MudTextField Label="Enter Max Prime" @bind-Value="_maxPrimeInput" />
-                <MudButton OnClick="DrawSpiralFromMaxValue">Generate</MudButton>
+            </MudListItem>
+
+            <MudListItem Style="text-align: center; padding-top: 0; padding-bottom: 0">
+                <MudButton OnClick="ReGenerate">Generate</MudButton>
+            </MudListItem>
+
+            <MudListItem Style="text-align: center; padding-top: 0; padding-bottom: 0">
+                <MudText>Primes Color</MudText>
+            </MudListItem>
+            <MudListItem Style="@($"background-color:{_primeColor.Value}; margin: 0 12px 8px; width: auto;")">
+                <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;" 
+                                IconSize="MudBlazor.Size.Small"
+                                ValueChanged="@(newColor => UpdatePrimeColor(newColor.Value))" />
+            </MudListItem>
+            
+            <MudListItem Style="text-align: center; padding-top: 0; padding-bottom: 0">
+                <MudText>Composites Color</MudText>
+            </MudListItem>
+            <MudListItem Style="@($"background-color:{_compositeBackgroundColor.Value}; margin: 0 12px 8px; width: auto;")">
+                <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;" 
+                                IconSize="MudBlazor.Size.Small"
+                                ValueChanged="@(newColor => UpdateBackgroundColor(newColor.Value))" />
+            </MudListItem>
+
+            <MudListItem Style="text-align: center; padding-top: 0; padding-bottom: 0">
+                <MudText>Spiral Color</MudText>
+            </MudListItem>
+            <MudListItem Style="@($"background-color:{_spiralLineColor.Value}; margin: 0 12px 8px; width: auto;")">
+                <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;" 
+                                IconSize="MudBlazor.Size.Small"
+                                ValueChanged="@(newColor => UpdateSpiralLineColor(newColor.Value))" />
+            </MudListItem>
+            
+            <MudListItem Style="text-align: center; padding-top: 0; padding-bottom: 0">
+                <MudText>Square Lattice</MudText>
+            </MudListItem>
+            <MudListItem Style="@($"background-color:{_gridLinesColor.Value}; margin: 0 12px 8px; width: auto;")">
+                <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;" 
+                                IconSize="MudBlazor.Size.Small"
+                                ValueChanged="@(newColor => UpdateGridLinesColor(newColor.Value))" />
             </MudListItem>
         </MudList>
     </MudDrawer>
@@ -85,7 +124,7 @@
     <MudDialog @ref="SaveDialog">
         <TitleContent>Exported Image Link</TitleContent>
         <DialogContent>
-            <a href="@PixelizedImageBlobLocation" download="@DownloadFileName">Download Image</a>
+            <a href="@ImageDownloadBlobLocation" download="@DownloadFileName">Download Image</a>
         </DialogContent>
         <DialogActions>
             <MudButton Color="Color.Primary" OnClick="CloseDialog">Ok</MudButton>
