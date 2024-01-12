@@ -111,12 +111,21 @@
             </MudListItem>
             
             <MudListItem Style="text-align: center; padding-top: 0; padding-bottom: 0">
-                <MudText>Square Lattice</MudText>
+                <MudText>Lattice Color</MudText>
             </MudListItem>
             <MudListItem Style="@($"background-color:{_gridLinesColor.Value}; margin: 0 12px 8px; width: auto;")">
                 <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;" 
                                 IconSize="MudBlazor.Size.Small"
                                 ValueChanged="@(newColor => UpdateGridLinesColor(newColor.Value))" />
+            </MudListItem>
+            
+            <MudListItem Style="text-align: center; padding-top: 0; padding-bottom: 0">
+                <MudText>Text Color</MudText>
+            </MudListItem>
+            <MudListItem Style="@($"background-color:{_numbersTextColor.Value}; margin: 0 12px 8px; width: auto;")">
+                <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;"
+                                IconSize="MudBlazor.Size.Small"
+                                ValueChanged="@(newColor => UpdateNumbersTextColor(newColor.Value))" />
             </MudListItem>
         </MudList>
     </MudDrawer>

@@ -10,55 +10,54 @@ namespace Primal.Client.Pages;
 public partial class Index
 {
     private bool _isDebugModeEnabled = false;
-    private string _debugText = "";
+    private bool _isLoading;
+    private const int SquareSize = 100;
+    private int _maxPrimeInput = 10000;
     private float _zoomScale = 1f;
-    private SKPoint _lastMousePosition;
-    private SKPoint _currentPanOffset = new(0, 0);
-    private const int SquareSize = 30;
     private float _canvasWidth;
     private float _canvasHeight;
+    private string _debugText = "";
+    private SKPoint _lastMousePosition;
+    private SKPoint _currentPanOffset = new(0, 0);
     private SKCanvasView? _drawingCanvas;
     private SKBitmap? _spiralBitmap;
     private SKImageInfo _spiralBitmapInfo;
-    private int _maxPrimeInput = 10000;
-    private bool _isLoading;
     private MudColor _primeColor = "#000000";
-    private MudColor _compositeBackgroundColor = "#FFFFFF";
+    private MudColor _compositeBackgroundColor = "#FFFFFF00";
     private MudColor _spiralLineColor = "#00FF00";
     private MudColor _gridLinesColor = "#000000";
     private MudColor _numbersTextColor = "#00CC00";
 
     private bool ToolsOpen { get; set; } = true;
+    public double SpiralGenerationPercentComplete { get; set; }
     private string? ImageDownloadBlobLocation { get; set; }
     private string? DownloadFileName { get; set; }
     private MudDialog? SaveDialog { get; set; }
-    public double SpiralGenerationPercentComplete { get; set; }
     private CancellationTokenSource _generationCancel = new();
 
     private async Task ReGenerate()
     {
-        CancelGeneration();
+        CancelSpiralGeneration();
         _generationCancel = new CancellationTokenSource();
         var cancellationToken = _generationCancel.Token;
 
         _isLoading = true;
-        Task.Run(() => Generate(cancellationToken), cancellationToken);
+        await Task.Run(() => GenerateSpiral(cancellationToken), cancellationToken);
         _isLoading = false;
 
         await TriggerUiCanvasRedraw();
     }
 
-    private void Generate(CancellationToken cancellationToken)
+    private void GenerateSpiral(CancellationToken cancellationToken)
     {
         var primes = GeneratePrimesUpTo(_maxPrimeInput, cancellationToken);
-        //_spiralBitmap = CreateSpiralBitmap(primes, cancellationToken);
-        _spiralBitmap = CreateSpiralBitmapWithIndicators(primes, cancellationToken);
+        _spiralBitmap = CreateLabeledPrimeSpiralBitmap(primes, cancellationToken);
         _spiralBitmapInfo = _spiralBitmap.Info;
-        SetInitialZoomLevel(_canvasHeight);
-        CenterSpiralOnCanvas(_canvasWidth, _canvasHeight);
+        SetInitialCanvasZoom(_canvasHeight);
+        CenterSpiralInCanvas(_canvasWidth, _canvasHeight);
     }
 
-    private void CancelGeneration()
+    private void CancelSpiralGeneration()
     {
         if (_generationCancel != null)
         {
@@ -82,7 +81,7 @@ public partial class Index
     {
         await base.OnInitializedAsync();
 
-        ThemeService.ToolsToggled += ToggleTools;
+        ThemeService.ToolsToggled += ToggleSpiralTools;
         ThemeService.OnDarkModeChanged += HandleDarkModeChanged;
         ThemeService.OnDebugModeChanged += HandleDebugModeChanged;
         ThemeService.SaveImageClicked += HandleSaveImage;
@@ -90,12 +89,13 @@ public partial class Index
 
     private HashSet<int> GeneratePrimesUpTo(int max, CancellationToken cancellationToken)
     {
+        //Sieve of Eratosthenes
         var primes = new HashSet<int>();
         var isPrime = new bool[max + 1];
         Array.Fill(isPrime, true);
         isPrime[0] = isPrime[1] = false;
 
-        for (int p = 2; p * p <= max; p++)
+        for (var p = 2; p * p <= max; p++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -108,7 +108,7 @@ public partial class Index
             }
         }
 
-        for (int p = 2; p <= max; p++)
+        for (var p = 2; p <= max; p++)
         {
             if (isPrime[p])
             {
@@ -119,7 +119,7 @@ public partial class Index
         return primes;
     }
 
-    private void CenterSpiralOnCanvas(float canvasWidth, float canvasHeight)
+    private void CenterSpiralInCanvas(float canvasWidth, float canvasHeight)
     {
         _currentPanOffset = new SKPoint(
             (canvasWidth - _spiralBitmapInfo.Width * _zoomScale) / 2,
@@ -127,14 +127,14 @@ public partial class Index
         );
     }
 
-    private void SetInitialZoomLevel(float canvasHeight)
+    private void SetInitialCanvasZoom(float canvasHeight)
     {
         var desiredBlocksVisible = 100;
         float totalHeightOfBlocks = desiredBlocksVisible * SquareSize;
         _zoomScale = canvasHeight / totalHeightOfBlocks;
     }
 
-    private SKBitmap CreateSpiralBitmapWithIndicators(HashSet<int> primes, CancellationToken cancellationToken)
+    private SKBitmap CreateLabeledPrimeSpiralBitmap(HashSet<int> primes, CancellationToken cancellationToken)
     {
         var filteredPrimes = primes.ToList();
         var biggestPrime = filteredPrimes.Max();
@@ -146,14 +146,9 @@ public partial class Index
         canvas.Clear(FromMud(_compositeBackgroundColor));
 
         var primePaint = CreateSpiralPaint(FromMud(_primeColor));
-        var linePaint = new SKPaint { Color = FromMud(_spiralLineColor), StrokeWidth = 1, IsAntialias = false, StrokeCap = SKStrokeCap.Square};
-        var gridPaint = new SKPaint { Color = FromMud(_gridLinesColor), IsStroke = true, StrokeWidth = 1, IsAntialias = false };
-        //var textPaint = new SKPaint
-        //{
-        //    Color = FromMud(_numbersTextColor),
-        //    TextSize = 10,
-        //    TextAlign = SKTextAlign.Center
-        //};
+        var linePaint = new SKPaint { Color = FromMud(_spiralLineColor), StrokeWidth = SquareSize / 10.0f, IsAntialias = false, StrokeCap = SKStrokeCap.Square};
+        var gridPaint = new SKPaint { Color = FromMud(_gridLinesColor), IsStroke = true, StrokeWidth = SquareSize / 10.0f, IsAntialias = false };
+        var textPaint = new SKPaint { Color = FromMud(_numbersTextColor), TextSize = SquareSize / 3.0f, TextAlign = SKTextAlign.Center, IsAntialias = true};
 
         SKPoint? lastPoint = null;
 
@@ -182,34 +177,40 @@ public partial class Index
             }
         }
 
-        //spiral line
+        ////spiral line
+        //for (int i = 1; i <= biggestPrime; i++)
+        //{
+        //    cancellationToken.ThrowIfCancellationRequested();
+
+        //    var (x, y) = GetSpiralPosition(i, center);
+        //    var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
+        //    var centerPoint = new SKPoint(rect.MidX, rect.MidY);
+
+        //    if (lastPoint.HasValue)
+        //    {
+        //        lock (canvas)
+        //        {
+        //            canvas.DrawLine(lastPoint.Value, centerPoint, linePaint);
+        //        }
+        //    }
+        //    lastPoint = centerPoint;
+        //}
+
+        //text labels
         for (int i = 1; i <= biggestPrime; i++)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var (x, y) = GetSpiralPosition(i, center);
-            var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
-            var centerPoint = new SKPoint(rect.MidX, rect.MidY);
-
-            if (lastPoint.HasValue)
+            lock (canvas)
             {
-                lock (canvas)
-                {
-                    canvas.DrawLine(lastPoint.Value, centerPoint, linePaint);
-                }
+                cancellationToken.ThrowIfCancellationRequested();
+                var (x, y) = GetSpiralPosition(i, center);
+                var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
+                var text = i.ToString();
+                var textBounds = new SKRect();
+                textPaint.MeasureText(text, ref textBounds);
+                canvas.DrawText(text, rect.MidX, rect.MidY - textBounds.MidY, textPaint);
             }
-            lastPoint = centerPoint;
         }
-
-        //    // Draw Text Overlay
-        //    //lock (canvas)
-        //    //{
-        //    //    var text = i.ToString();
-        //    //    var textBounds = new SKRect();
-        //    //    textPaint.MeasureText(text, ref textBounds);
-        //    //    canvas.DrawText(text, rect.MidX, rect.MidY - textBounds.MidY, textPaint);
-        //    //}
-
+        
         return spiralBitmap;
     }
 
@@ -274,26 +275,31 @@ public partial class Index
     private async void DrawNextCanvasFrame(SKPaintSurfaceEventArgs args)
     {
         var canvas = args.Surface.Canvas;
-        //canvas.Clear(FromMud(_compositeBackgroundColor));
         canvas.Clear(SKColors.Transparent);
+
         var matrix = SKMatrix.CreateIdentity();
         matrix = matrix.PostConcat(SKMatrix.CreateScale(_zoomScale, _zoomScale));
         matrix = matrix.PostConcat(SKMatrix.CreateTranslation(_currentPanOffset.X, _currentPanOffset.Y));
         canvas.SetMatrix(matrix);
+
         if (_spiralBitmap != null)
             canvas.DrawBitmap(_spiralBitmap, 0, 0);
+
         canvas.ResetMatrix();
+
         await TriggerUiCanvasRedraw();
     }
 
     private async void HandleSaveImage(object? sender, EventArgs e)
     {
         if (_spiralBitmap == null) return;
-        //var upScaledBitmap = ScaleBitmap(_spiralBitmap, upscaleFactor);
+
         using var image = SKImage.FromBitmap(_spiralBitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+
         var imageData = data.ToArray();
         await GenerateBlobUrl(imageData);
+
         SaveDialog.Show();
     }
 
@@ -302,7 +308,7 @@ public partial class Index
         var oldZoomScale = _zoomScale;
         _zoomScale *= e.DeltaY < 0 ? 1.2f : 0.8f;
 
-        float scaleChange = _zoomScale / oldZoomScale;
+        var scaleChange = _zoomScale / oldZoomScale;
 
         _currentPanOffset.X = (_currentPanOffset.X - _canvasWidth / 2) * scaleChange + _canvasWidth / 2;
         _currentPanOffset.Y = (_currentPanOffset.Y - _canvasHeight / 2) * scaleChange + _canvasHeight / 2;
@@ -341,7 +347,7 @@ public partial class Index
         //might need to update a local variable related to the canvas?
     }
 
-    private void ToggleTools(object? sender, EventArgs e)
+    private void ToggleSpiralTools(object? sender, EventArgs e)
     {
         ToolsOpen = !ToolsOpen;
         StateHasChanged();
