@@ -5,54 +5,32 @@ namespace Primal.Client.Services;
 public class ThemeService
 {
     public static MudTheme CurrentTheme { get; } = new();
-    private bool _isDarkMode = false;
-    private bool _isDebugMode = false;
+
+    private bool _isDarkMode;
     public bool IsDarkMode
     {
         get => _isDarkMode;
-        set
-        {
-            if (_isDarkMode != value)
-            {
-                _isDarkMode = value;
-                OnDarkModeChanged?.Invoke(this, EventArgs.Empty);
-            }
-        }
+        set => _isDarkMode = value;
     }
 
-    public bool IsDebugMode
-    {
-        get => _isDebugMode;
-        set
-        {
-            if (_isDebugMode != value)
-            {
-                _isDebugMode = value;
-                OnDebugModeChanged?.Invoke(this, EventArgs.Empty);
-            }
-        }
-    }
-
-    public event EventHandler OnDarkModeChanged;
-    public event EventHandler OnDebugModeChanged;
-    public event EventHandler SaveImageClicked;
     public event EventHandler? ToolsToggled;
-
-    public void SaveImage()
-    {
-        SaveImageClicked?.Invoke(this, EventArgs.Empty);
-    }
-
     public void ToggleTools()
     {
         var handler = ToolsToggled;
         handler?.Invoke(this, EventArgs.Empty);
     }
 
-    public void ToggleDebug()
+    public event EventHandler? ZoomInPressed;
+    public void ZoomIn()
     {
-        IsDebugMode = !IsDebugMode;
-        var handler = OnDebugModeChanged;
+        var handler = ZoomInPressed;
+        handler?.Invoke(this, EventArgs.Empty);
+    }
+
+    public event EventHandler? ZoomOutPressed;
+    public void ZoomOut()
+    {
+        var handler = ZoomOutPressed;
         handler?.Invoke(this, EventArgs.Empty);
     }
 }

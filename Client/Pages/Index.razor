@@ -3,11 +3,13 @@
 @using SkiaSharp.Views.Blazor
 @using MudBlazor
 @using Primal.Client.Services
+@using BlazorPanzoom
+
 @inject IJSRuntime JSRuntime
 @inject ThemeService ThemeService
 @implements IDisposable
 
-<PageTitle>Ulam Spiral Explorer</PageTitle>
+<PageTitle>Prime Spiral Explorer</PageTitle>
 
 <MudContainer Style="height: 100%;">
     <style type="text/css">
@@ -54,15 +56,23 @@
     } *@
 
     <ProgressIndicator Hidden="@(!_isLoading)" Progress="@SpiralGenerationPercentComplete"></ProgressIndicator>
-
-    <SKCanvasView id="canvasElementId"
-                  Hidden="@(_isLoading)"
-    @ref="_drawingCanvas"
-    @onmousewheel="OnMouseWheel"
-    @onmousedown="OnMouseDown"
-    @onmousemove="OnMouseMove"
-                  IgnorePixelScaling="true"
-                  OnPaintSurface="DrawNextCanvasFrame" />
+    
+  @*   <div class="panzoom-parent">
+        <Panzoom @ref="_panzoom" WheelMode="WheelMode.ZoomWithWheel">
+            <div @ref="@context.ElementReference" class="panzoom"> *@
+                <SKCanvasView id="canvasElementId"
+                              Hidden="@(_isLoading)"
+                              @ref="_drawingCanvas"
+                              @onmousewheel="OnMouseWheel"
+                              @onmousedown="OnMouseDown"
+                              @onmousemove="OnMouseMove"
+                              @ontouchstart="OnTouchStart"
+                              @ontouchmove="OnTouchMove"
+                              IgnorePixelScaling="true"
+                              OnPaintSurface="DrawNextCanvasFrame" />
+@*             </div>
+        </Panzoom>
+    </div> *@
 
     @if (_isDebugModeEnabled)
     {
@@ -74,80 +84,85 @@
             <MudText Typo="Typo.h6">Tools</MudText>
         </MudDrawerHeader>
 
-        <MudList>
+        <MudList Style="padding-top: 0;">
+            <MudListItem Style="padding-top: 0;">
+                <MudTextField  Label="Max Prime" @bind-Value="_maxPrimeInput" />
+            </MudListItem>
+
             <MudListItem>
                 <MudGrid Justify="Justify.SpaceEvenly" Style="align-items: center;">
-                    <MudItem xs="6" Style="text-align: start; padding-top: 0; padding-bottom: 0">
-                        <MudTextField Label="Max Prime" @bind-Value="_maxPrimeInput" />
+                    <MudItem xs="6" Style="display: flex; justify-content: center; padding: 0">
+                        <MudButton Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Square" OnClick="ReGenerate">Generate</MudButton>
                     </MudItem>
-                    <MudItem xs="6" Style="display: flex; justify-content: center; padding-top: 0; padding-bottom: 0">
-                        <MudButton OnClick="ReGenerate">Generate</MudButton>
+                    <MudItem xs="6" Style="display: flex; justify-content: center; padding: 0">
+                        <MudButton Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveImage" >Save</MudButton>
                     </MudItem>
                 </MudGrid>
             </MudListItem>
-            
+
             <MudListItem>
                 <MudText>Composites</MudText>
                 <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;"
                                 IconSize="MudBlazor.Size.Small"
-                                ValueChanged="@(newColor => UpdateBackgroundColor(newColor.Value))" />
+                                ValueChanged="@(newColor => UpdateBackgroundColor(newColor.Value))"/>
             </MudListItem>
-            
+
             <MudListItem>
                 <MudGrid Justify="Justify.SpaceEvenly" Style="align-items: center;">
                     <MudItem xs="9" Style="text-align: start; padding-top: 0; padding-bottom: 0">
                         <MudText>Show Primes</MudText>
                     </MudItem>
                     <MudItem xs="3" Style="display: flex; justify-content: center; padding-top: 0; padding-bottom: 0">
-                        <MudCheckBox @bind-Checked="ShowPrimesEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary" />
+                        <MudCheckBox @bind-Checked="ShowPrimesEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary"/>
                     </MudItem>
                 </MudGrid>
                 <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;"
                                 IconSize="MudBlazor.Size.Small"
                                 ValueChanged="@(newColor => UpdatePrimeColor(newColor.Value))"/>
             </MudListItem>
-            
+
             <MudListItem>
                 <MudGrid Justify="Justify.SpaceEvenly" Style="align-items: center;">
                     <MudItem xs="9" Style="text-align: start; padding-top: 0; padding-bottom: 0">
                         <MudText>Show Spiral</MudText>
                     </MudItem>
                     <MudItem xs="3" Style="display: flex; justify-content: center; padding-top: 0; padding-bottom: 0">
-                        <MudCheckBox @bind-Checked="ShowSpiralLineEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary" />
+                        <MudCheckBox @bind-Checked="ShowSpiralLineEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary"/>
                     </MudItem>
                 </MudGrid>
                 <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;"
                                 IconSize="MudBlazor.Size.Small"
                                 ValueChanged="@(newColor => UpdateSpiralLineColor(newColor.Value))"/>
             </MudListItem>
-            
+
             <MudListItem>
                 <MudGrid Justify="Justify.SpaceEvenly" Style="align-items: center;">
                     <MudItem xs="9" Style="text-align: start; padding-top: 0; padding-bottom: 0">
                         <MudText>Show Lattice</MudText>
                     </MudItem>
                     <MudItem xs="3" Style="display: flex; justify-content: center; padding-top: 0; padding-bottom: 0">
-                        <MudCheckBox @bind-Checked="ShowSquareLatticeEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary" />
+                        <MudCheckBox @bind-Checked="ShowSquareLatticeEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary"/>
                     </MudItem>
                 </MudGrid>
                 <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;"
                                 IconSize="MudBlazor.Size.Small"
                                 ValueChanged="@(newColor => UpdateGridLinesColor(newColor.Value))"/>
             </MudListItem>
-            
+
             <MudListItem>
                 <MudGrid Justify="Justify.SpaceEvenly" Style="align-items: center;">
                     <MudItem xs="9" Style="text-align: start; padding-top: 0; padding-bottom: 0">
                         <MudText>Show Text</MudText>
                     </MudItem>
                     <MudItem xs="3" Style="display: flex; justify-content: center; padding-top: 0; padding-bottom: 0">
-                        <MudCheckBox @bind-Checked="ShowTextLabelsEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary" />
+                        <MudCheckBox @bind-Checked="ShowTextLabelsEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary"/>
                     </MudItem>
                 </MudGrid>
                 <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;"
                                 IconSize="MudBlazor.Size.Small"
                                 ValueChanged="@(newColor => UpdateNumbersTextColor(newColor.Value))"/>
             </MudListItem>
+            <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.BugReport" OnClick="ToggleDebug"/>
         </MudList>
     </MudDrawer>
 

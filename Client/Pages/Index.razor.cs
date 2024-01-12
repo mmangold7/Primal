@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Components.Web;
+﻿using BlazorPanzoom;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using MudBlazor;
 using MudBlazor.Utilities;
@@ -16,6 +17,7 @@ public partial class Index
     private int _maxPrimeInput = 10000;
     private string _debugText = "";
 
+    //private Panzoom _panzoom = new Panzoom();
     private SKCanvasView? _drawingCanvas;
     private SKBitmap? _spiralBitmap;
     private SKImageInfo _spiralBitmapInfo;
@@ -43,6 +45,7 @@ public partial class Index
     private float _canvasHeight;
     private float _zoomScale = 1f;
     private SKPoint _lastMousePosition;
+    private SKPoint _lastTouchPosition;
     private SKPoint _currentPanOffset = new(0, 0);
 
     private void CenterSpiralInCanvas(float canvasWidth, float canvasHeight)
@@ -62,8 +65,14 @@ public partial class Index
 
     private void OnMouseWheel(WheelEventArgs e)
     {
+        var amount = e.DeltaY < 0 ? 1.2f : 0.8f;
+        Zoom(amount);
+    }
+
+    private void Zoom(float amount)
+    {
         var oldZoomScale = _zoomScale;
-        _zoomScale *= e.DeltaY < 0 ? 1.2f : 0.8f;
+        _zoomScale *= amount;
 
         var scaleChange = _zoomScale / oldZoomScale;
 
@@ -86,6 +95,30 @@ public partial class Index
             var currentMousePosition = new SKPoint((float)e.ClientX, (float)e.ClientY);
             var delta = currentMousePosition - _lastMousePosition;
             _lastMousePosition = currentMousePosition;
+            _currentPanOffset += delta;
+
+            UpdateDebugText();
+            TriggerUiCanvasRedraw().ConfigureAwait(false);
+        }
+    }
+
+    private void OnTouchStart(TouchEventArgs e)
+    {
+        if (e.Touches.Length > 0)
+        {
+            var touch = e.Touches[0];
+            _lastTouchPosition = new SKPoint((float)touch.ClientX, (float)touch.ClientY);
+        }
+    }
+
+    private void OnTouchMove(TouchEventArgs e)
+    {
+        if (e.Touches.Length > 0)
+        {
+            var touch = e.Touches[0];
+            var currentTouchPosition = new SKPoint((float)touch.ClientX, (float)touch.ClientY);
+            var delta = currentTouchPosition - _lastTouchPosition;
+            _lastTouchPosition = currentTouchPosition;
             _currentPanOffset += delta;
 
             UpdateDebugText();
@@ -146,8 +179,18 @@ public partial class Index
         await base.OnInitializedAsync();
 
         ThemeService.ToolsToggled += ToggleSpiralTools;
-        ThemeService.OnDebugModeChanged += HandleDebugModeChanged;
-        ThemeService.SaveImageClicked += HandleSaveImage;
+        ThemeService.ZoomInPressed += ZoomIn;
+        ThemeService.ZoomOutPressed += ZoomOut;
+    }
+
+    private void ZoomOut(object? sender, EventArgs e)
+    {
+        Zoom(.8f);
+    }
+
+    private void ZoomIn(object? sender, EventArgs e)
+    {
+        Zoom(1.2f);
     }
 
     private HashSet<int> GeneratePrimesUpTo(int max, CancellationToken cancellationToken)
@@ -391,7 +434,7 @@ public partial class Index
         await TriggerUiCanvasRedraw();
     }
 
-    private async void HandleSaveImage(object? sender, EventArgs e)
+    private async void SaveImage()
     {
         if (_spiralBitmap == null) return;
 
@@ -440,9 +483,9 @@ public partial class Index
         StateHasChanged();
     }
 
-    private async void HandleDebugModeChanged(object? sender, EventArgs e)
+    private async void ToggleDebug()
     {
-        _isDebugModeEnabled = ThemeService.IsDebugMode;
+        _isDebugModeEnabled = !_isDebugModeEnabled;
         UpdateDebugText();
         await TriggerUiCanvasRedraw();
     }
@@ -458,8 +501,9 @@ public partial class Index
 
     public void Dispose()
     {
-        ThemeService.OnDebugModeChanged -= HandleDebugModeChanged;
-        ThemeService.SaveImageClicked -= HandleSaveImage;
+        ThemeService.ToolsToggled -= ToggleSpiralTools;
+        ThemeService.ZoomInPressed -= ZoomIn;
+        ThemeService.ZoomOutPressed -= ZoomOut;
     }
 
     private static SKColor FromMud(MudColor color) => new(color.R, color.G, color.B, color.A);

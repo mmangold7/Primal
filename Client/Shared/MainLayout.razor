@@ -10,27 +10,25 @@
 
 <MudLayout Style="height: 100%;">
     <MudAppBar Color="Color.Primary" Elevation="1">
-        <MudText Typo="Typo.h5" Class="ml-3">Ulam Spiral Explorer</MudText>
+        <MudText Typo="Typo.h5" Class="ml-3">Ulam Spiral</MudText>
         <MudSpacer/>
 
-        <MudHidden Breakpoint="Breakpoint.MdAndDown">
+        @* <MudHidden Breakpoint="Breakpoint.MdAndDown"> *@
             <MudButtonGroup Edge="Edge.End">
-                <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.BugReport" OnClick="ToggleDebugMode" />
-                <MudIconButton Color="Color.Inherit" Icon="@(ThemeService.IsDarkMode ? Icons.Material.Filled.Brightness7 : Icons.Material.Filled.Brightness4)" OnClick="@ToggleDarkMode"/>
-                <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.Save" OnClick="SaveActualImage"/>
+            <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.ZoomOut" OnClick="@ZoomOut" />
+            <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.ZoomIn" OnClick="@ZoomIn" />
+            <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.Brightness4" OnClick="@ToggleDarkMode" />
                 <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.Build" OnClick="@ToggleTools"/>
             </MudButtonGroup>
-        </MudHidden>
+        @* </MudHidden> *@
 
-        <MudHidden Breakpoint="Breakpoint.LgAndUp">
+@*         <MudHidden Breakpoint="Breakpoint.LgAndUp">
             <!-- Dropdown menu for smaller screens -->
             <MudMenu Icon="@Icons.Material.Filled.MoreVert" Direction="Direction.Bottom">
-                <MudMenuItem OnClick="@ToggleDebugMode">Toggle Debug Mode</MudMenuItem>
                 <MudMenuItem OnClick="@ToggleDarkMode">Toggle Dark Mode</MudMenuItem>
-                <MudMenuItem OnClick="@SaveActualImage">Save Image</MudMenuItem>
                 <MudMenuItem OnClick="@ToggleTools">Toggle Tools</MudMenuItem>
             </MudMenu>
-        </MudHidden>
+        </MudHidden> *@
     </MudAppBar>
     <MudMainContent Style="height: 100%;">
         @Body
@@ -38,23 +36,23 @@
 </MudLayout>
 
 @code {
-    private void ToggleDebugMode()
-    {
-        ThemeService.ToggleDebug();
-    }
-
     void ToggleDarkMode()
     {
         ThemeService.IsDarkMode = !ThemeService.IsDarkMode;
     }
 
-    private void SaveActualImage()
-    {
-        ThemeService.SaveImage();
-    }
-
     private void ToggleTools()
     {
         ThemeService.ToggleTools();
+    }
+
+    private void ZoomOut()
+    {
+        ThemeService.ZoomOut();
+    }
+
+    private void ZoomIn()
+    {
+        ThemeService.ZoomIn();
     }
 }
