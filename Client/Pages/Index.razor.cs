@@ -2,6 +2,7 @@
 using Microsoft.JSInterop;
 using MudBlazor;
 using MudBlazor.Utilities;
+using Primal.Client.Models;
 using SkiaSharp;
 using SkiaSharp.Views.Blazor;
 
@@ -9,19 +10,22 @@ namespace Primal.Client.Pages;
 
 public partial class Index
 {
-    private bool _isDebugModeEnabled = false;
+    private bool _isDebugModeEnabled;
     private bool _isLoading;
-    private const int SquareSize = 100;
+    private int _squareSize;
     private int _maxPrimeInput = 10000;
     private float _zoomScale = 1f;
     private float _canvasWidth;
     private float _canvasHeight;
     private string _debugText = "";
+
     private SKPoint _lastMousePosition;
     private SKPoint _currentPanOffset = new(0, 0);
     private SKCanvasView? _drawingCanvas;
     private SKBitmap? _spiralBitmap;
     private SKImageInfo _spiralBitmapInfo;
+    private CancellationTokenSource _generationCancel = new();
+
     private MudColor _primeColor = "#000000";
     private MudColor _compositeBackgroundColor = "#FFFFFF00";
     private MudColor _spiralLineColor = "#00FF00";
@@ -29,16 +33,62 @@ public partial class Index
     private MudColor _numbersTextColor = "#00CC00";
 
     private bool ToolsOpen { get; set; } = true;
-    public double SpiralGenerationPercentComplete { get; set; }
-    private string? ImageDownloadBlobLocation { get; set; }
-    private string? DownloadFileName { get; set; }
-    private MudDialog? SaveDialog { get; set; }
     public bool ShowPrimesEnabled { get; set; } = true;
     public bool ShowSpiralLineEnabled { get; set; }
     public bool ShowTextLabelsEnabled { get; set; }
     public bool ShowSquareLatticeEnabled { get; set; }
+    public double SpiralGenerationPercentComplete { get; set; }
+    private string? ImageDownloadBlobLocation { get; set; }
+    private string? DownloadFileName { get; set; }
+    private MudDialog? SaveDialog { get; set; }
+    
+    private void CenterSpiralInCanvas(float canvasWidth, float canvasHeight)
+    {
+        _currentPanOffset = new SKPoint(
+            (canvasWidth - _spiralBitmapInfo.Width * _zoomScale) / 2,
+            (canvasHeight - _spiralBitmapInfo.Height * _zoomScale) / 2
+        );
+    }
 
-    private CancellationTokenSource _generationCancel = new();
+    private void SetInitialCanvasZoom(float canvasHeight)
+    {
+        var desiredBlocksVisible = 50;
+        float totalHeightOfBlocks = desiredBlocksVisible * _squareSize;
+        _zoomScale = canvasHeight / totalHeightOfBlocks;
+    }
+
+    private void OnMouseWheel(WheelEventArgs e)
+    {
+        var oldZoomScale = _zoomScale;
+        _zoomScale *= e.DeltaY < 0 ? 1.2f : 0.8f;
+
+        var scaleChange = _zoomScale / oldZoomScale;
+
+        _currentPanOffset.X = (_currentPanOffset.X - _canvasWidth / 2) * scaleChange + _canvasWidth / 2;
+        _currentPanOffset.Y = (_currentPanOffset.Y - _canvasHeight / 2) * scaleChange + _canvasHeight / 2;
+
+        UpdateDebugText();
+        TriggerUiCanvasRedraw().ConfigureAwait(false);
+    }
+
+    private void OnMouseDown(MouseEventArgs e)
+    {
+        _lastMousePosition = new SKPoint((float)e.ClientX, (float)e.ClientY);
+    }
+
+    private void OnMouseMove(MouseEventArgs e)
+    {
+        if (e.Buttons == 1) // Left mouse button
+        {
+            var currentMousePosition = new SKPoint((float)e.ClientX, (float)e.ClientY);
+            var delta = currentMousePosition - _lastMousePosition;
+            _lastMousePosition = currentMousePosition;
+            _currentPanOffset += delta;
+
+            UpdateDebugText();
+            TriggerUiCanvasRedraw().ConfigureAwait(false);
+        }
+    }
 
     private async Task ReGenerate()
     {
@@ -48,6 +98,8 @@ public partial class Index
 
         _isLoading = true;
         await Task.Run(() => GenerateSpiral(cancellationToken), cancellationToken);
+        SetInitialCanvasZoom(_canvasHeight);
+        CenterSpiralInCanvas(_canvasWidth, _canvasHeight);
         _isLoading = false;
 
         await TriggerUiCanvasRedraw();
@@ -58,8 +110,6 @@ public partial class Index
         var primes = GeneratePrimesUpTo(_maxPrimeInput, cancellationToken);
         _spiralBitmap = CreateLabeledPrimeSpiralBitmap(primes, cancellationToken);
         _spiralBitmapInfo = _spiralBitmap.Info;
-        SetInitialCanvasZoom(_canvasHeight);
-        CenterSpiralInCanvas(_canvasWidth, _canvasHeight);
     }
 
     private void CancelSpiralGeneration()
@@ -75,7 +125,7 @@ public partial class Index
     {
         if (firstRender)
         {
-            var size = await JSRuntime.InvokeAsync<Size>("getElementSize", "canvasElementId");
+            var size = await JSRuntime.InvokeAsync<HtmlElementSize>("getElementSize", "canvasElementId");
             _canvasWidth = size.Width;
             _canvasHeight = size.Height;
             await ReGenerate();
@@ -87,7 +137,6 @@ public partial class Index
         await base.OnInitializedAsync();
 
         ThemeService.ToolsToggled += ToggleSpiralTools;
-        ThemeService.OnDarkModeChanged += HandleDarkModeChanged;
         ThemeService.OnDebugModeChanged += HandleDebugModeChanged;
         ThemeService.SaveImageClicked += HandleSaveImage;
     }
@@ -124,23 +173,18 @@ public partial class Index
         return primes;
     }
 
-    private void CenterSpiralInCanvas(float canvasWidth, float canvasHeight)
-    {
-        _currentPanOffset = new SKPoint(
-            (canvasWidth - _spiralBitmapInfo.Width * _zoomScale) / 2,
-            (canvasHeight - _spiralBitmapInfo.Height * _zoomScale) / 2
-        );
-    }
-
-    private void SetInitialCanvasZoom(float canvasHeight)
-    {
-        var desiredBlocksVisible = 100;
-        float totalHeightOfBlocks = desiredBlocksVisible * SquareSize;
-        _zoomScale = canvasHeight / totalHeightOfBlocks;
-    }
-
     private SKBitmap CreateLabeledPrimeSpiralBitmap(HashSet<int> primes, CancellationToken cancellationToken)
     {
+        _squareSize = 1;
+        if (ShowSquareLatticeEnabled || ShowSpiralLineEnabled)
+        {
+            _squareSize = 10;
+        }
+        if (ShowTextLabelsEnabled)
+        {
+            _squareSize = 100;
+        }
+
         var filteredPrimes = primes.ToList();
         var biggestPrime = filteredPrimes.Max();
         var bitmapSideLength = CalculateBitmapSideLength(biggestPrime);
@@ -151,9 +195,9 @@ public partial class Index
         canvas.Clear(FromMud(_compositeBackgroundColor));
 
         var primePaint = CreateSpiralPaint(FromMud(_primeColor));
-        var linePaint = new SKPaint { Color = FromMud(_spiralLineColor), StrokeWidth = SquareSize / 10.0f, IsAntialias = false, StrokeCap = SKStrokeCap.Square};
-        var gridPaint = new SKPaint { Color = FromMud(_gridLinesColor), IsStroke = true, StrokeWidth = SquareSize / 10.0f, IsAntialias = false };
-        var textPaint = new SKPaint { Color = FromMud(_numbersTextColor), TextSize = SquareSize / 3.0f, TextAlign = SKTextAlign.Center, IsAntialias = true};
+        var linePaint = new SKPaint { Color = FromMud(_spiralLineColor), StrokeWidth = _squareSize / 10.0f, IsAntialias = false, StrokeCap = SKStrokeCap.Square};
+        var gridPaint = new SKPaint { Color = FromMud(_gridLinesColor), IsStroke = true, StrokeWidth = _squareSize / 10.0f, IsAntialias = false };
+        var textPaint = new SKPaint { Color = FromMud(_numbersTextColor), TextSize = _squareSize / 3.0f, TextAlign = SKTextAlign.Center, IsAntialias = true};
 
         SKPoint? lastPoint = null;
 
@@ -164,7 +208,7 @@ public partial class Index
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var (x, y) = GetSpiralPosition(prime, center);
-                var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
+                var rect = new SKRect(x, y, x + _squareSize, y + _squareSize);
 
                 lock (canvas)
                 {
@@ -180,7 +224,7 @@ public partial class Index
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var (x, y) = GetSpiralPosition(i, center);
-                var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
+                var rect = new SKRect(x, y, x + _squareSize, y + _squareSize);
                 lock (canvas)
                 {
                     canvas.DrawRect(rect, gridPaint);
@@ -196,7 +240,7 @@ public partial class Index
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var (x, y) = GetSpiralPosition(i, center);
-                var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
+                var rect = new SKRect(x, y, x + _squareSize, y + _squareSize);
                 var centerPoint = new SKPoint(rect.MidX, rect.MidY);
 
                 if (lastPoint.HasValue)
@@ -215,47 +259,47 @@ public partial class Index
         {
             for (int i = 1; i <= biggestPrime; i++)
             {
-                //lock (canvas)
-                //{
-                //    cancellationToken.ThrowIfCancellationRequested();
-                //    var (x, y) = GetSpiralPosition(i, center);
-                //    var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
-                //    var text = i.ToString();
-                //    var textBounds = new SKRect();
-                //    textPaint.MeasureText(text, ref textBounds);
-                //    canvas.DrawText(text, rect.MidX, rect.MidY - textBounds.MidY, textPaint);
-                //}
                 lock (canvas)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var (x, y) = GetSpiralPosition(i, center);
+                    var rect = new SKRect(x, y, x + _squareSize, y + _squareSize);
                     var text = i.ToString();
-
-                    var charSize = SquareSize / 3;
-                    textPaint.TextSize = charSize;
-                    var charOffsetX = x;
-                    var charOffsetY = y;
-
-                    // Draw each character in a 3x3 grid
-                    for (int charIndex = 0; charIndex < text.Length; charIndex++)
-                    {
-                        var character = text[charIndex].ToString();
-                        var textBounds = new SKRect();
-                        textPaint.MeasureText(character, ref textBounds);
-                        float textX = charOffsetX + (charSize - textBounds.Width) / 2;
-                        float textY = charOffsetY + (charSize + textBounds.Height) / 2;
-
-                        canvas.DrawText(character, textX, textY, textPaint);
-
-                        // Move to the next grid position
-                        charOffsetX += charSize;
-                        if ((charIndex + 1) % 3 == 0)
-                        {
-                            charOffsetX = x;
-                            charOffsetY += charSize;
-                        }
-                    }
+                    var textBounds = new SKRect();
+                    textPaint.MeasureText(text, ref textBounds);
+                    canvas.DrawText(text, rect.MidX, rect.MidY - textBounds.MidY, textPaint);
                 }
+                //lock (canvas)
+                //{
+                //    cancellationToken.ThrowIfCancellationRequested();
+                //    var (x, y) = GetSpiralPosition(i, center);
+                //    var text = i.ToString();
+
+                //    var charSize = _squareSize / 3;
+                //    textPaint.TextSize = charSize;
+                //    var charOffsetX = x;
+                //    var charOffsetY = y;
+
+                //    // Draw each character in a 3x3 grid
+                //    for (int charIndex = 0; charIndex < text.Length; charIndex++)
+                //    {
+                //        var character = text[charIndex].ToString();
+                //        var textBounds = new SKRect();
+                //        textPaint.MeasureText(character, ref textBounds);
+                //        float textX = charOffsetX + (charSize - textBounds.Width) / 2;
+                //        float textY = charOffsetY + (charSize + textBounds.Height) / 2;
+
+                //        canvas.DrawText(character, textX, textY, textPaint);
+
+                //        // Move to the next grid position
+                //        charOffsetX += charSize;
+                //        if ((charIndex + 1) % 3 == 0)
+                //        {
+                //            charOffsetX = x;
+                //            charOffsetY += charSize;
+                //        }
+                //    }
+                //}
             }
         }
 
@@ -265,7 +309,7 @@ public partial class Index
     private int CalculateBitmapSideLength(int biggestPrime)
     {
         var maxLayer = (int)Math.Ceiling((Math.Sqrt(biggestPrime) - 1) / 2);
-        return (2 * maxLayer + 1) * SquareSize;
+        return (2 * maxLayer + 1) * _squareSize;
     }
 
     private static SKPaint CreateSpiralPaint(SKColor color) =>
@@ -274,7 +318,7 @@ public partial class Index
     private (float x, float y) GetSpiralPosition(int number, int center)
     {
         var (x, y) = GetSpiralCoordinates(number);
-        return (x * SquareSize + center, y * SquareSize + center);
+        return (x * _squareSize + center, y * _squareSize + center);
     }
 
     private (float x, float y) GetSpiralCoordinates(int number)
@@ -351,48 +395,10 @@ public partial class Index
         SaveDialog.Show();
     }
 
-    private void OnMouseWheel(WheelEventArgs e)
-    {
-        var oldZoomScale = _zoomScale;
-        _zoomScale *= e.DeltaY < 0 ? 1.2f : 0.8f;
-
-        var scaleChange = _zoomScale / oldZoomScale;
-
-        _currentPanOffset.X = (_currentPanOffset.X - _canvasWidth / 2) * scaleChange + _canvasWidth / 2;
-        _currentPanOffset.Y = (_currentPanOffset.Y - _canvasHeight / 2) * scaleChange + _canvasHeight / 2;
-
-        UpdateDebugText();
-        TriggerUiCanvasRedraw().ConfigureAwait(false);
-    }
-
-    private void OnMouseDown(MouseEventArgs e)
-    {
-        _lastMousePosition = new SKPoint((float)e.ClientX, (float)e.ClientY);
-    }
-
-    private void OnMouseMove(MouseEventArgs e)
-    {
-        if (e.Buttons == 1) // Left mouse button
-        {
-            var currentMousePosition = new SKPoint((float)e.ClientX, (float)e.ClientY);
-            var delta = currentMousePosition - _lastMousePosition;
-            _lastMousePosition = currentMousePosition;
-            _currentPanOffset += delta;
-
-            UpdateDebugText();
-            TriggerUiCanvasRedraw().ConfigureAwait(false);
-        }
-    }
-
     private async Task TriggerUiCanvasRedraw()
     {
         _drawingCanvas?.Invalidate();
         await InvokeAsync(StateHasChanged);
-    }
-
-    private void HandleDarkModeChanged(object? sender, EventArgs e)
-    {
-        //might need to update a local variable related to the canvas?
     }
 
     private void ToggleSpiralTools(object? sender, EventArgs e)
@@ -431,6 +437,13 @@ public partial class Index
         StateHasChanged();
     }
 
+    private async void HandleDebugModeChanged(object? sender, EventArgs e)
+    {
+        _isDebugModeEnabled = ThemeService.IsDebugMode;
+        UpdateDebugText();
+        await TriggerUiCanvasRedraw();
+    }
+
     private void UpdateDebugText()
     {
         if (_isDebugModeEnabled)
@@ -440,22 +453,8 @@ public partial class Index
         }
     }
 
-    private async void HandleDebugModeChanged(object? sender, EventArgs e)
-    {
-        _isDebugModeEnabled = ThemeService.IsDebugMode;
-        UpdateDebugText();
-        await TriggerUiCanvasRedraw();
-    }
-
-    private class Size
-    {
-        public float Width { get; set; }
-        public float Height { get; set; }
-    }
-
     public void Dispose()
     {
-        ThemeService.OnDarkModeChanged -= HandleDarkModeChanged;
         ThemeService.OnDebugModeChanged -= HandleDebugModeChanged;
         ThemeService.SaveImageClicked -= HandleSaveImage;
     }

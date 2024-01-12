@@ -10,23 +10,24 @@
 
 <MudLayout Style="height: 100%;">
     <MudAppBar Color="Color.Primary" Elevation="1">
-        <MudSpacer />
+        <MudText Typo="Typo.h5" Class="ml-3">Ulam Spiral Explorer</MudText>
+        <MudSpacer/>
 
         <MudHidden Breakpoint="Breakpoint.MdAndDown">
             <MudButtonGroup Edge="Edge.End">
-                <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.Save" OnClick="SaveActualImage" />
-                @* <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.BugReport" OnClick="ToggleDebugMode" /> *@
-                <MudIconButton Color="Color.Inherit" Icon="@(ThemeService.IsDarkMode ? Icons.Material.Filled.Brightness7 : Icons.Material.Filled.Brightness4)" OnClick="@ToggleDarkMode" />
-                <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.Build" OnClick="@ToggleTools" />
+                <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.BugReport" OnClick="ToggleDebugMode" />
+                <MudIconButton Color="Color.Inherit" Icon="@(ThemeService.IsDarkMode ? Icons.Material.Filled.Brightness7 : Icons.Material.Filled.Brightness4)" OnClick="@ToggleDarkMode"/>
+                <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.Save" OnClick="SaveActualImage"/>
+                <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.Build" OnClick="@ToggleTools"/>
             </MudButtonGroup>
         </MudHidden>
 
         <MudHidden Breakpoint="Breakpoint.LgAndUp">
             <!-- Dropdown menu for smaller screens -->
             <MudMenu Icon="@Icons.Material.Filled.MoreVert" Direction="Direction.Bottom">
-                <MudMenuItem OnClick="@SaveActualImage">Save Image</MudMenuItem>
-                @* <MudMenuItem OnClick="@ToggleDebugMode">Toggle Debug Mode</MudMenuItem> *@
+                <MudMenuItem OnClick="@ToggleDebugMode">Toggle Debug Mode</MudMenuItem>
                 <MudMenuItem OnClick="@ToggleDarkMode">Toggle Dark Mode</MudMenuItem>
+                <MudMenuItem OnClick="@SaveActualImage">Save Image</MudMenuItem>
                 <MudMenuItem OnClick="@ToggleTools">Toggle Tools</MudMenuItem>
             </MudMenu>
         </MudHidden>
@@ -39,7 +40,7 @@
 @code {
     private void ToggleDebugMode()
     {
-        ThemeService.IsDebugMode = !ThemeService.IsDebugMode;
+        ThemeService.ToggleDebug();
     }
 
     void ToggleDarkMode()
