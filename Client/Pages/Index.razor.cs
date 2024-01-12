@@ -14,13 +14,8 @@ public partial class Index
     private bool _isLoading;
     private int _squareSize;
     private int _maxPrimeInput = 10000;
-    private float _zoomScale = 1f;
-    private float _canvasWidth;
-    private float _canvasHeight;
     private string _debugText = "";
 
-    private SKPoint _lastMousePosition;
-    private SKPoint _currentPanOffset = new(0, 0);
     private SKCanvasView? _drawingCanvas;
     private SKBitmap? _spiralBitmap;
     private SKImageInfo _spiralBitmapInfo;
@@ -41,7 +36,15 @@ public partial class Index
     private string? ImageDownloadBlobLocation { get; set; }
     private string? DownloadFileName { get; set; }
     private MudDialog? SaveDialog { get; set; }
+
+
     
+    private float _canvasWidth;
+    private float _canvasHeight;
+    private float _zoomScale = 1f;
+    private SKPoint _lastMousePosition;
+    private SKPoint _currentPanOffset = new(0, 0);
+
     private void CenterSpiralInCanvas(float canvasWidth, float canvasHeight)
     {
         _currentPanOffset = new SKPoint(
@@ -90,6 +93,23 @@ public partial class Index
         }
     }
 
+    private async Task TriggerUiCanvasRedraw()
+    {
+        _drawingCanvas?.Invalidate();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var size = await JSRuntime.InvokeAsync<HtmlElementSize>("getElementSize", "canvasElementId");
+            _canvasWidth = size.Width;
+            _canvasHeight = size.Height;
+            await ReGenerate();
+        }
+    }
+
     private async Task ReGenerate()
     {
         CancelSpiralGeneration();
@@ -118,17 +138,6 @@ public partial class Index
         {
             _generationCancel.Cancel();
             _generationCancel.Dispose();
-        }
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            var size = await JSRuntime.InvokeAsync<HtmlElementSize>("getElementSize", "canvasElementId");
-            _canvasWidth = size.Width;
-            _canvasHeight = size.Height;
-            await ReGenerate();
         }
     }
 
@@ -393,12 +402,6 @@ public partial class Index
         await GenerateBlobUrl(imageData);
 
         SaveDialog.Show();
-    }
-
-    private async Task TriggerUiCanvasRedraw()
-    {
-        _drawingCanvas?.Invalidate();
-        await InvokeAsync(StateHasChanged);
     }
 
     private void ToggleSpiralTools(object? sender, EventArgs e)
