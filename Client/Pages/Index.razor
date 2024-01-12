@@ -102,8 +102,9 @@
 
             <MudListItem>
                 <MudText>Composites</MudText>
-                <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;"
+                <MudColorPicker Style="@($"background-color:{_compositeBackgroundColor.Value}; margin-top: 0; display: flex; justify-content: center;")"
                                 IconSize="MudBlazor.Size.Small"
+                                Value="_compositeBackgroundColor"
                                 ValueChanged="@(newColor => UpdateBackgroundColor(newColor.Value))"/>
             </MudListItem>
 
@@ -116,8 +117,9 @@
                         <MudCheckBox @bind-Checked="ShowPrimesEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary"/>
                     </MudItem>
                 </MudGrid>
-                <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;"
+                <MudColorPicker Style="@($"background-color:{_primeColor.Value}; margin-top: 0; display: flex; justify-content: center;")"
                                 IconSize="MudBlazor.Size.Small"
+                                Value="_primeColor"
                                 ValueChanged="@(newColor => UpdatePrimeColor(newColor.Value))"/>
             </MudListItem>
 
@@ -130,8 +132,9 @@
                         <MudCheckBox @bind-Checked="ShowSpiralLineEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary"/>
                     </MudItem>
                 </MudGrid>
-                <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;"
+                <MudColorPicker Style="@($"background-color:{_spiralLineColor.Value}; margin-top: 0; display: flex; justify-content: center;")"
                                 IconSize="MudBlazor.Size.Small"
+                                Value="_spiralLineColor"
                                 ValueChanged="@(newColor => UpdateSpiralLineColor(newColor.Value))"/>
             </MudListItem>
 
@@ -144,8 +147,9 @@
                         <MudCheckBox @bind-Checked="ShowSquareLatticeEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary"/>
                     </MudItem>
                 </MudGrid>
-                <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;"
+                <MudColorPicker Style="@($"background-color:{_gridLinesColor.Value}; margin-top: 0; display: flex; justify-content: center;")"
                                 IconSize="MudBlazor.Size.Small"
+                                Value="_gridLinesColor"
                                 ValueChanged="@(newColor => UpdateGridLinesColor(newColor.Value))"/>
             </MudListItem>
 
@@ -158,8 +162,9 @@
                         <MudCheckBox @bind-Checked="ShowTextLabelsEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary"/>
                     </MudItem>
                 </MudGrid>
-                <MudColorPicker Style="margin-top: 0; display: flex; justify-content: center;"
+                <MudColorPicker Style="@($"background-color:{_numbersTextColor.Value}; margin-top: 0; display: flex; justify-content: center;")"
                                 IconSize="MudBlazor.Size.Small"
+                                Value="_numbersTextColor"
                                 ValueChanged="@(newColor => UpdateNumbersTextColor(newColor.Value))"/>
             </MudListItem>
             <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.BugReport" OnClick="ToggleDebug"/>

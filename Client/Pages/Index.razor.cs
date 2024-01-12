@@ -240,34 +240,18 @@ public partial class Index
         var filteredPrimes = primes.ToList();
         var biggestPrime = filteredPrimes.Max();
         var bitmapSideLength = CalculateBitmapSideLength(biggestPrime);
-        var center = bitmapSideLength / 2;
+        var center = bitmapSideLength / 2.0f;
 
         var spiralBitmap = new SKBitmap(bitmapSideLength, bitmapSideLength);
         using var canvas = new SKCanvas(spiralBitmap);
         canvas.Clear(FromMud(_compositeBackgroundColor));
 
         var primePaint = CreateSpiralPaint(FromMud(_primeColor));
-        var linePaint = new SKPaint { Color = FromMud(_spiralLineColor), StrokeWidth = _squareSize / 10.0f, IsAntialias = false, StrokeCap = SKStrokeCap.Square};
+        var linePaint = new SKPaint { Color = FromMud(_spiralLineColor), StrokeWidth = _squareSize / 5.0f, IsAntialias = false, StrokeCap = SKStrokeCap.Square};
         var gridPaint = new SKPaint { Color = FromMud(_gridLinesColor), IsStroke = true, StrokeWidth = _squareSize / 10.0f, IsAntialias = false };
         var textPaint = new SKPaint { Color = FromMud(_numbersTextColor), TextSize = _squareSize / 3.0f, TextAlign = SKTextAlign.Center, IsAntialias = true};
 
         SKPoint? lastPoint = null;
-
-        //prime squares
-        if (ShowPrimesEnabled)
-        {
-            foreach (var prime in filteredPrimes)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var (x, y) = GetSpiralPosition(prime, center);
-                var rect = new SKRect(x, y, x + _squareSize, y + _squareSize);
-
-                lock (canvas)
-                {
-                    canvas.DrawRect(rect, primePaint);
-                }
-            }
-        }
 
         //grid lines
         if (ShowSquareLatticeEnabled)
@@ -303,6 +287,22 @@ public partial class Index
                     }
                 }
                 lastPoint = centerPoint;
+            }
+        }
+
+        //prime squares
+        if (ShowPrimesEnabled)
+        {
+            foreach (var prime in filteredPrimes)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var (x, y) = GetSpiralPosition(prime, center);
+                var rect = new SKRect(x, y, x + _squareSize, y + _squareSize);
+
+                lock (canvas)
+                {
+                    canvas.DrawRect(rect, primePaint);
+                }
             }
         }
 
@@ -361,13 +361,13 @@ public partial class Index
     private int CalculateBitmapSideLength(int biggestPrime)
     {
         var maxLayer = (int)Math.Ceiling((Math.Sqrt(biggestPrime) - 1) / 2);
-        return (2 * maxLayer + 1) * _squareSize;
+        return (2 * maxLayer) * _squareSize;
     }
 
     private static SKPaint CreateSpiralPaint(SKColor color) =>
         new() { Color = color, IsAntialias = false, Style = SKPaintStyle.Fill };
 
-    private (float x, float y) GetSpiralPosition(int number, int center)
+    private (float x, float y) GetSpiralPosition(int number, float center)
     {
         var (x, y) = GetSpiralCoordinates(number);
         return (x * _squareSize + center, y * _squareSize + center);
