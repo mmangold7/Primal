@@ -90,12 +90,12 @@
             </MudListItem>
 
             <MudListItem>
-                <MudGrid Justify="Justify.SpaceEvenly" Style="align-items: center;">
-                    <MudItem xs="6" Style="display: flex; justify-content: center; padding: 0">
-                        <MudButton Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Square" OnClick="ReGenerate">Generate</MudButton>
+                <MudGrid>
+                    <MudItem xs="6" Style="padding-top: 0; padding-bottom: 0">
+                        <MudButton Color="Color.Inherit" EndIcon="@Icons.Material.Filled.Square" OnClick="ReGenerate">Generate</MudButton>
                     </MudItem>
-                    <MudItem xs="6" Style="display: flex; justify-content: center; padding: 0">
-                        <MudButton Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveImage" >Save</MudButton>
+                    <MudItem xs="6" Style="padding-top: 0; padding-bottom: 0">
+                        <MudButton Color="Color.Inherit" EndIcon="@Icons.Material.Filled.Save" OnClick="SaveImage" >Save</MudButton>
                     </MudItem>
                 </MudGrid>
             </MudListItem>
@@ -167,7 +167,9 @@
                                 Value="_numbersTextColor"
                                 ValueChanged="@(newColor => UpdateNumbersTextColor(newColor.Value))"/>
             </MudListItem>
-            <MudIconButton Color="Color.Inherit" Icon="@Icons.Material.Filled.BugReport" OnClick="ToggleDebug"/>
+            <MudListItem>
+                <MudButton Color="Color.Inherit" EndIcon="@Icons.Material.Filled.BugReport" OnClick="ToggleDebug">Info</MudButton>
+            </MudListItem>
         </MudList>
     </MudDrawer>
 

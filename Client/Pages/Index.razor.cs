@@ -58,9 +58,10 @@ public partial class Index
 
     private void SetInitialCanvasZoom(float canvasHeight)
     {
-        var desiredBlocksVisible = 50;
-        float totalHeightOfBlocks = desiredBlocksVisible * _squareSize;
-        _zoomScale = canvasHeight / totalHeightOfBlocks;
+        //var desiredBlocksVisible = 50;
+        //float totalHeightOfBlocks = desiredBlocksVisible * _squareSize;
+        //_zoomScale = canvasHeight / totalHeightOfBlocks;
+        _zoomScale = 10f;
     }
 
     private void OnMouseWheel(WheelEventArgs e)
