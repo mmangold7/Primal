@@ -33,6 +33,11 @@ public partial class Index
     private string? ImageDownloadBlobLocation { get; set; }
     private string? DownloadFileName { get; set; }
     private MudDialog? SaveDialog { get; set; }
+    public bool ShowPrimesEnabled { get; set; } = true;
+    public bool ShowSpiralLineEnabled { get; set; }
+    public bool ShowTextLabelsEnabled { get; set; }
+    public bool ShowSquareLatticeEnabled { get; set; }
+
     private CancellationTokenSource _generationCancel = new();
 
     private async Task ReGenerate()
@@ -153,64 +158,107 @@ public partial class Index
         SKPoint? lastPoint = null;
 
         //prime squares
-        foreach (var prime in filteredPrimes)
+        if (ShowPrimesEnabled)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var (x, y) = GetSpiralPosition(prime, center);
-            var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
-
-            lock (canvas)
+            foreach (var prime in filteredPrimes)
             {
-                canvas.DrawRect(rect, primePaint);
+                cancellationToken.ThrowIfCancellationRequested();
+                var (x, y) = GetSpiralPosition(prime, center);
+                var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
+
+                lock (canvas)
+                {
+                    canvas.DrawRect(rect, primePaint);
+                }
             }
         }
 
         //grid lines
-        for (int i = 1; i <= biggestPrime; i++)
+        if (ShowSquareLatticeEnabled)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var (x, y) = GetSpiralPosition(i, center);
-            var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
-            lock (canvas)
-            {
-                canvas.DrawRect(rect, gridPaint);
-            }
-        }
-
-        ////spiral line
-        //for (int i = 1; i <= biggestPrime; i++)
-        //{
-        //    cancellationToken.ThrowIfCancellationRequested();
-
-        //    var (x, y) = GetSpiralPosition(i, center);
-        //    var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
-        //    var centerPoint = new SKPoint(rect.MidX, rect.MidY);
-
-        //    if (lastPoint.HasValue)
-        //    {
-        //        lock (canvas)
-        //        {
-        //            canvas.DrawLine(lastPoint.Value, centerPoint, linePaint);
-        //        }
-        //    }
-        //    lastPoint = centerPoint;
-        //}
-
-        //text labels
-        for (int i = 1; i <= biggestPrime; i++)
-        {
-            lock (canvas)
+            for (int i = 1; i <= biggestPrime; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var (x, y) = GetSpiralPosition(i, center);
                 var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
-                var text = i.ToString();
-                var textBounds = new SKRect();
-                textPaint.MeasureText(text, ref textBounds);
-                canvas.DrawText(text, rect.MidX, rect.MidY - textBounds.MidY, textPaint);
+                lock (canvas)
+                {
+                    canvas.DrawRect(rect, gridPaint);
+                }
             }
         }
-        
+
+        //spiral line
+        if (ShowSpiralLineEnabled)
+        {
+            for (int i = 1; i <= biggestPrime; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var (x, y) = GetSpiralPosition(i, center);
+                var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
+                var centerPoint = new SKPoint(rect.MidX, rect.MidY);
+
+                if (lastPoint.HasValue)
+                {
+                    lock (canvas)
+                    {
+                        canvas.DrawLine(lastPoint.Value, centerPoint, linePaint);
+                    }
+                }
+                lastPoint = centerPoint;
+            }
+        }
+
+        //text labels
+        if (ShowTextLabelsEnabled)
+        {
+            for (int i = 1; i <= biggestPrime; i++)
+            {
+                //lock (canvas)
+                //{
+                //    cancellationToken.ThrowIfCancellationRequested();
+                //    var (x, y) = GetSpiralPosition(i, center);
+                //    var rect = new SKRect(x, y, x + SquareSize, y + SquareSize);
+                //    var text = i.ToString();
+                //    var textBounds = new SKRect();
+                //    textPaint.MeasureText(text, ref textBounds);
+                //    canvas.DrawText(text, rect.MidX, rect.MidY - textBounds.MidY, textPaint);
+                //}
+                lock (canvas)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var (x, y) = GetSpiralPosition(i, center);
+                    var text = i.ToString();
+
+                    var charSize = SquareSize / 3;
+                    textPaint.TextSize = charSize;
+                    var charOffsetX = x;
+                    var charOffsetY = y;
+
+                    // Draw each character in a 3x3 grid
+                    for (int charIndex = 0; charIndex < text.Length; charIndex++)
+                    {
+                        var character = text[charIndex].ToString();
+                        var textBounds = new SKRect();
+                        textPaint.MeasureText(character, ref textBounds);
+                        float textX = charOffsetX + (charSize - textBounds.Width) / 2;
+                        float textY = charOffsetY + (charSize + textBounds.Height) / 2;
+
+                        canvas.DrawText(character, textX, textY, textPaint);
+
+                        // Move to the next grid position
+                        charOffsetX += charSize;
+                        if ((charIndex + 1) % 3 == 0)
+                        {
+                            charOffsetX = x;
+                            charOffsetY += charSize;
+                        }
+                    }
+                }
+            }
+        }
+
         return spiralBitmap;
     }
 
