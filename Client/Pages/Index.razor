@@ -56,22 +56,22 @@
     } *@
 
     <ProgressIndicator Hidden="@(!_isLoading)" Progress="@SpiralGenerationPercentComplete"></ProgressIndicator>
-    
-  @*   <div class="panzoom-parent">
-        <Panzoom @ref="_panzoom" WheelMode="WheelMode.ZoomWithWheel">
-            <div @ref="@context.ElementReference" class="panzoom"> *@
-                <SKCanvasView id="canvasElementId"
-                              Hidden="@(_isLoading)"
-                              @ref="_drawingCanvas"
-                              @onmousewheel="OnMouseWheel"
-                              @onmousedown="OnMouseDown"
-                              @onmousemove="OnMouseMove"
-                              @ontouchstart="OnTouchStart"
-                              @ontouchmove="OnTouchMove"
-                              IgnorePixelScaling="true"
-                              OnPaintSurface="DrawNextCanvasFrame" />
-@*             </div>
-        </Panzoom>
+
+    @*   <div class="panzoom-parent">
+    <Panzoom @ref="_panzoom" WheelMode="WheelMode.ZoomWithWheel">
+    <div @ref="@context.ElementReference" class="panzoom"> *@
+    <SKCanvasView id="canvasElementId"
+                  Hidden="@(_isLoading)"
+    @ref="_drawingCanvas"
+    @onmousewheel="OnMouseWheel"
+    @onmousedown="OnMouseDown"
+    @onmousemove="OnMouseMove"
+    @ontouchstart="OnTouchStart"
+    @ontouchmove="OnTouchMove"
+                  IgnorePixelScaling="true"
+                  OnPaintSurface="DrawNextCanvasFrame" />
+    @*             </div>
+    </Panzoom>
     </div> *@
 
     @if (_isDebugModeEnabled)
@@ -86,8 +86,28 @@
 
         <MudList Style="padding-top: 0;">
             <MudListItem Style="padding-top: 0;">
-                <MudTextField  Label="Max Prime" @bind-Value="_maxPrimeInput" />
+                <MudTextField Label="Max Prime" @bind-Value="_maxPrimeInput" />
             </MudListItem>
+            <MudListItem>
+                <MudGrid Justify="Justify.SpaceEvenly" Style="align-items: center;">
+                    <MudItem xs="8" Style="text-align: center; padding-top: 0; padding-bottom: 0">
+                        <MudText>Polar Mode</MudText>
+                    </MudItem>
+                    <MudItem xs="4" Style="display: flex; justify-content: center; padding-top: 0; padding-bottom: 0">
+                        <MudSwitch @bind-Checked="_usePolar" Color="Color.Primary" UnCheckedColor="Color.Secondary" />
+                    </MudItem>
+                </MudGrid>
+            </MudListItem>
+            
+           @*  <MudListItem Style="margin-bottom: 0;">
+                <MudText>Radial Scale: @RadialScale</MudText>
+                <MudSlider T="float" @bind-Value="RadialScale" Min=".01f" Max="10" Step=".01f" />
+            </MudListItem> *@
+            
+@*             <MudListItem Style="margin-bottom: 0;">
+                <MudText>Angular Scale: @AngularScale</MudText>
+                <MudSlider T="float" @bind-Value="AngularScale" Min=".01f" Max="1" Step=".01f" />
+            </MudListItem> *@
 
             <MudListItem>
                 <MudGrid>
@@ -95,7 +115,7 @@
                         <MudButton Color="Color.Inherit" EndIcon="@Icons.Material.Filled.Square" OnClick="ReGenerate">Generate</MudButton>
                     </MudItem>
                     <MudItem xs="6" Style="padding-top: 0; padding-bottom: 0">
-                        <MudButton Color="Color.Inherit" EndIcon="@Icons.Material.Filled.Save" OnClick="SaveImage" >Save</MudButton>
+                        <MudButton Color="Color.Inherit" EndIcon="@Icons.Material.Filled.Save" OnClick="SaveImage">Save</MudButton>
                     </MudItem>
                 </MudGrid>
             </MudListItem>
@@ -105,7 +125,7 @@
                 <MudColorPicker Style="@($"background-color:{_compositeBackgroundColor.Value}; margin-top: 0; display: flex; justify-content: center;")"
                                 IconSize="MudBlazor.Size.Small"
                                 Value="_compositeBackgroundColor"
-                                ValueChanged="@(newColor => UpdateBackgroundColor(newColor.Value))"/>
+                                ValueChanged="@(newColor => UpdateBackgroundColor(newColor.Value))" />
             </MudListItem>
 
             <MudListItem>
@@ -114,13 +134,13 @@
                         <MudText>Show Primes</MudText>
                     </MudItem>
                     <MudItem xs="3" Style="display: flex; justify-content: center; padding-top: 0; padding-bottom: 0">
-                        <MudCheckBox @bind-Checked="ShowPrimesEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary"/>
+                        <MudCheckBox @bind-Checked="ShowPrimesEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary" />
                     </MudItem>
                 </MudGrid>
                 <MudColorPicker Style="@($"background-color:{_primeColor.Value}; margin-top: 0; display: flex; justify-content: center;")"
                                 IconSize="MudBlazor.Size.Small"
                                 Value="_primeColor"
-                                ValueChanged="@(newColor => UpdatePrimeColor(newColor.Value))"/>
+                                ValueChanged="@(newColor => UpdatePrimeColor(newColor.Value))" />
             </MudListItem>
 
             <MudListItem>
@@ -129,13 +149,13 @@
                         <MudText>Show Spiral</MudText>
                     </MudItem>
                     <MudItem xs="3" Style="display: flex; justify-content: center; padding-top: 0; padding-bottom: 0">
-                        <MudCheckBox @bind-Checked="ShowSpiralLineEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary"/>
+                        <MudCheckBox @bind-Checked="ShowSpiralLineEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary" />
                     </MudItem>
                 </MudGrid>
                 <MudColorPicker Style="@($"background-color:{_spiralLineColor.Value}; margin-top: 0; display: flex; justify-content: center;")"
                                 IconSize="MudBlazor.Size.Small"
                                 Value="_spiralLineColor"
-                                ValueChanged="@(newColor => UpdateSpiralLineColor(newColor.Value))"/>
+                                ValueChanged="@(newColor => UpdateSpiralLineColor(newColor.Value))" />
             </MudListItem>
 
             <MudListItem>
@@ -144,13 +164,13 @@
                         <MudText>Show Lattice</MudText>
                     </MudItem>
                     <MudItem xs="3" Style="display: flex; justify-content: center; padding-top: 0; padding-bottom: 0">
-                        <MudCheckBox @bind-Checked="ShowSquareLatticeEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary"/>
+                        <MudCheckBox @bind-Checked="ShowSquareLatticeEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary" />
                     </MudItem>
                 </MudGrid>
                 <MudColorPicker Style="@($"background-color:{_gridLinesColor.Value}; margin-top: 0; display: flex; justify-content: center;")"
                                 IconSize="MudBlazor.Size.Small"
                                 Value="_gridLinesColor"
-                                ValueChanged="@(newColor => UpdateGridLinesColor(newColor.Value))"/>
+                                ValueChanged="@(newColor => UpdateGridLinesColor(newColor.Value))" />
             </MudListItem>
 
             <MudListItem>
@@ -159,13 +179,13 @@
                         <MudText>Show Text</MudText>
                     </MudItem>
                     <MudItem xs="3" Style="display: flex; justify-content: center; padding-top: 0; padding-bottom: 0">
-                        <MudCheckBox @bind-Checked="ShowTextLabelsEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary"/>
+                        <MudCheckBox @bind-Checked="ShowTextLabelsEnabled" Color="Color.Primary" UnCheckedColor="Color.Secondary" />
                     </MudItem>
                 </MudGrid>
                 <MudColorPicker Style="@($"background-color:{_numbersTextColor.Value}; margin-top: 0; display: flex; justify-content: center;")"
                                 IconSize="MudBlazor.Size.Small"
                                 Value="_numbersTextColor"
-                                ValueChanged="@(newColor => UpdateNumbersTextColor(newColor.Value))"/>
+                                ValueChanged="@(newColor => UpdateNumbersTextColor(newColor.Value))" />
             </MudListItem>
             <MudListItem>
                 <MudButton Color="Color.Inherit" EndIcon="@Icons.Material.Filled.BugReport" OnClick="ToggleDebug">Info</MudButton>

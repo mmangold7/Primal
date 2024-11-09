@@ -33,20 +33,20 @@ public partial class Index
     public bool ShowPrimesEnabled { get; set; } = true;
     public bool ShowSpiralLineEnabled { get; set; }
     public bool ShowTextLabelsEnabled { get; set; }
-    public bool ShowSquareLatticeEnabled { get; set; }
+    public bool ShowSquareLatticeEnabled { get; set; } = true;
     public double SpiralGenerationPercentComplete { get; set; }
     private string? ImageDownloadBlobLocation { get; set; }
     private string? DownloadFileName { get; set; }
     private MudDialog? SaveDialog { get; set; }
+    public float AngularScale { get; set; } = 1;
 
-
-    
     private float _canvasWidth;
     private float _canvasHeight;
     private float _zoomScale = 1f;
     private SKPoint _lastMousePosition;
     private SKPoint _lastTouchPosition;
     private SKPoint _currentPanOffset = new(0, 0);
+    private bool _usePolar = true;
 
     private void CenterSpiralInCanvas(float canvasWidth, float canvasHeight)
     {
@@ -61,7 +61,7 @@ public partial class Index
         //var desiredBlocksVisible = 50;
         //float totalHeightOfBlocks = desiredBlocksVisible * _squareSize;
         //_zoomScale = canvasHeight / totalHeightOfBlocks;
-        _zoomScale = 10f;
+        _zoomScale = 10f / _squareSize;
     }
 
     private void OnMouseWheel(WheelEventArgs e)
@@ -162,7 +162,11 @@ public partial class Index
     private void GenerateSpiral(CancellationToken cancellationToken)
     {
         var primes = GeneratePrimesUpTo(_maxPrimeInput, cancellationToken);
-        _spiralBitmap = CreateLabeledPrimeSpiralBitmap(primes, cancellationToken);
+
+        _spiralBitmap = _usePolar 
+            ? CreateLabeledPolarSpiralBitmap(primes, cancellationToken) 
+            : CreateLabeledSquareLatticeSpiralBitmap(primes, cancellationToken);
+
         _spiralBitmapInfo = _spiralBitmap.Info;
     }
 
@@ -226,7 +230,171 @@ public partial class Index
         return primes;
     }
 
-    private SKBitmap CreateLabeledPrimeSpiralBitmap(HashSet<int> primes, CancellationToken cancellationToken)
+    private SKBitmap CreateLabeledPolarSpiralBitmap(HashSet<int> primes, CancellationToken cancellationToken)
+    {
+        _squareSize = 1;
+        if (ShowSquareLatticeEnabled || ShowSpiralLineEnabled)
+        {
+            _squareSize = 10;
+        }
+        if (ShowTextLabelsEnabled)
+        {
+            _squareSize = 100;
+        }
+
+        var filteredPrimes = primes.ToList();
+        var biggestPrime = filteredPrimes.Max();
+        var bitmapSideLength = CalculateBitmapSideLengthForPolarSpiral(biggestPrime);
+        var center = bitmapSideLength / 2.0f;
+
+        var spiralBitmap = new SKBitmap(bitmapSideLength, bitmapSideLength);
+        using var canvas = new SKCanvas(spiralBitmap);
+        canvas.Clear(FromMud(_compositeBackgroundColor));
+
+        var primePaint = CreateSpiralPaint(FromMud(_primeColor));
+        var linePaint = new SKPaint { Color = FromMud(_spiralLineColor), StrokeWidth = _squareSize / 5.0f, IsAntialias = false, StrokeCap = SKStrokeCap.Square };
+        var gridPaint = new SKPaint { Color = FromMud(_gridLinesColor), IsStroke = false, StrokeWidth = _squareSize / 10.0f, IsAntialias = false };
+        var textPaint = new SKPaint { Color = FromMud(_numbersTextColor), TextSize = _squareSize / 3.0f, TextAlign = SKTextAlign.Center, IsAntialias = true };
+
+        SKPoint? lastPoint = null;
+
+        //grid lines
+        if (ShowSquareLatticeEnabled)
+        {
+            //// Draw each rectangle with rotation
+            //for (int i = 1; i <= biggestPrime; i++)
+            //{
+            //    cancellationToken.ThrowIfCancellationRequested();
+
+            //    var (x, y, angle) = GetPolarSpiralPositionWithAngle(i, center);
+            //    var rect = new SKRect(x - _squareSize / 2, y - _squareSize / 2, x + _squareSize / 2, y + _squareSize / 2);
+
+            //    // Save the current state of the canvas
+            //    canvas.Save();
+
+            //    // Rotate the canvas around the center of the rectangle
+            //    canvas.RotateDegrees((float)angle, x, y);
+
+            //    // Draw the rectangle (now rotated)
+            //    lock (canvas)
+            //    {
+            //        canvas.DrawRect(rect, gridPaint);
+            //    }
+
+            //    // Restore the canvas to its original state
+            //    canvas.Restore();
+            //}
+            for (int i = 1; i <= biggestPrime; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var (x, y, angle) = GetPolarSpiralPositionWithAngle(i, center);
+
+                // Draw the rectangle (now rotated)
+                lock (canvas)
+                {
+                    canvas.DrawCircle(x, y, _squareSize / 2.0f, gridPaint);
+                }
+            }
+        }
+
+        //spiral line
+        if (ShowSpiralLineEnabled)
+        {
+            for (int i = 1; i <= biggestPrime; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var (x, y, angle) = GetPolarSpiralPositionWithAngle(i, center);
+                var rect = new SKRect(x, y, x + _squareSize, y + _squareSize);
+                var centerPoint = new SKPoint(rect.MidX, rect.MidY);
+
+                if (lastPoint.HasValue)
+                {
+                    lock (canvas)
+                    {
+                        canvas.DrawLine(lastPoint.Value, centerPoint, linePaint);
+                    }
+                }
+                lastPoint = centerPoint;
+            }
+        }
+
+        //prime squares
+        if (ShowPrimesEnabled)
+        {
+            //foreach (var prime in filteredPrimes)
+            //{
+            //    cancellationToken.ThrowIfCancellationRequested();
+            //    var (x, y, angle) = GetPolarSpiralPositionWithAngle(prime, center);
+            //    var rect = new SKRect(x - _squareSize / 2, y - _squareSize / 2, x + _squareSize / 2, y + _squareSize / 2);
+
+            //    // Save the current state of the canvas
+            //    canvas.Save();
+
+            //    // Rotate the canvas around the center of the rectangle
+            //    canvas.RotateDegrees(angle, x, y);
+
+            //    // Draw the rectangle (now rotated)
+            //    lock (canvas)
+            //    {
+            //        canvas.DrawRect(rect, primePaint);
+            //    }
+
+            //    // Restore the canvas to its original state
+            //    canvas.Restore();
+            //}
+            foreach (var prime in filteredPrimes)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var (x, y, angle) = GetPolarSpiralPositionWithAngle(prime, center);
+
+                lock (canvas)
+                {
+                    canvas.DrawCircle(x, y, _squareSize / 2.0f, primePaint);
+                }
+            }
+        }
+
+        //text labels
+        if (ShowTextLabelsEnabled)
+        {
+            for (int i = 1; i <= biggestPrime; i++)
+            {
+                lock (canvas)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var (x, y, angle) = GetPolarSpiralPositionWithAngle(i, center);
+                    var rect = new SKRect(x, y, x + _squareSize, y + _squareSize);
+                    var text = i.ToString();
+                    var textBounds = new SKRect();
+                    textPaint.MeasureText(text, ref textBounds);
+                    canvas.DrawText(text, rect.MidX, rect.MidY - textBounds.MidY, textPaint);
+                }
+            }
+        }
+
+        return spiralBitmap;
+    }
+
+    private (float x, float y, float angle) GetPolarSpiralPositionWithAngle(int number, float center)
+    {
+        //double radius = Math.Sqrt(number / Math.PI) * _squareSize;
+        //double angle = number * _squareSize / radius * 2;
+        double radius = Math.Sqrt(number) * _squareSize;
+        double angle = 2 * Math.PI * radius;
+
+        // Convert polar coordinates (r, θ) to Cartesian coordinates (x, y)
+        float x = (float)(center + radius * Math.Cos(angle));
+        float y = (float)(center + radius * Math.Sin(angle));
+
+        // Calculate the angle of rotation for the rectangle
+        float rotationAngle = (float)(angle * 180 / Math.PI) - 90;
+
+        return (x, y, rotationAngle);
+    }
+
+    private SKBitmap CreateLabeledSquareLatticeSpiralBitmap(HashSet<int> primes, CancellationToken cancellationToken)
     {
         _squareSize = 1;
         if (ShowSquareLatticeEnabled || ShowSpiralLineEnabled)
@@ -322,37 +490,6 @@ public partial class Index
                     textPaint.MeasureText(text, ref textBounds);
                     canvas.DrawText(text, rect.MidX, rect.MidY - textBounds.MidY, textPaint);
                 }
-                //lock (canvas)
-                //{
-                //    cancellationToken.ThrowIfCancellationRequested();
-                //    var (x, y) = GetSpiralPosition(i, center);
-                //    var text = i.ToString();
-
-                //    var charSize = _squareSize / 3;
-                //    textPaint.TextSize = charSize;
-                //    var charOffsetX = x;
-                //    var charOffsetY = y;
-
-                //    // Draw each character in a 3x3 grid
-                //    for (int charIndex = 0; charIndex < text.Length; charIndex++)
-                //    {
-                //        var character = text[charIndex].ToString();
-                //        var textBounds = new SKRect();
-                //        textPaint.MeasureText(character, ref textBounds);
-                //        float textX = charOffsetX + (charSize - textBounds.Width) / 2;
-                //        float textY = charOffsetY + (charSize + textBounds.Height) / 2;
-
-                //        canvas.DrawText(character, textX, textY, textPaint);
-
-                //        // Move to the next grid position
-                //        charOffsetX += charSize;
-                //        if ((charIndex + 1) % 3 == 0)
-                //        {
-                //            charOffsetX = x;
-                //            charOffsetY += charSize;
-                //        }
-                //    }
-                //}
             }
         }
 
@@ -363,6 +500,12 @@ public partial class Index
     {
         var maxLayer = (int)Math.Ceiling((Math.Sqrt(biggestPrime) - 1) / 2);
         return (2 * maxLayer) * _squareSize;
+    }
+
+    private int CalculateBitmapSideLengthForPolarSpiral(int biggestPrime)
+    {
+        //return (int)Math.Ceiling(Math.Sqrt(biggestPrime / Math.PI) * _squareSize * 2);
+        return (int)Math.Ceiling(Math.Sqrt(biggestPrime) * _squareSize * 2);
     }
 
     private static SKPaint CreateSpiralPaint(SKColor color) =>
@@ -530,78 +673,6 @@ public partial class Index
 //    }
 
 //    return scaledBitmap;
-//}
-
-//private async Task<string> LoadMillionPrimesCsv()
-//{
-//    try
-//    {
-//        var filePath = "data/P-1000000.txt";
-//        var csvContent = await JSRuntime.InvokeAsync<string>("loadEmbeddedCSV", filePath);
-//        return csvContent;
-//    }
-//    catch (Exception ex)
-//    {
-//        Console.WriteLine($"Error loading CSV: {ex.Message}");
-//        return "";
-//    }
-//}
-
-//private async Task<string> Load10MillionPrimesCsv()
-//{
-//    try
-//    {
-//        var filePath = "data/50_million_primes_0.csv";
-//        var csvContent = await JSRuntime.InvokeAsync<string>("loadEmbeddedCSV", filePath);
-//        return csvContent;
-//    }
-//    catch (Exception ex)
-//    {
-//        Console.WriteLine($"Error loading CSV: {ex.Message}");
-//        return "";
-//    }
-//}
-
-//private async Task<SKBitmap> CreateNewSpiralBitmapFromBinaryFile()
-//{
-//    var csvContent = await JSRuntime.InvokeAsync<byte[]>("loadBinaryFile", "data/50_million_primes_try3_0.bin");
-
-//    using (var memoryStream = new MemoryStream(csvContent))
-//    using (var binaryReader = new BinaryReader(memoryStream))
-//    {
-//        while (memoryStream.Position < memoryStream.Length)
-//        {
-//            var prime = binaryReader.ReadInt32();
-//            _primes.Add(prime);
-//        }
-//    }
-
-//    return CreateSpiralBitmap();
-//}
-
-//private async Task<SKBitmap> LoadPreGeneratedSpiral()
-//{
-//    var base64String = await JSRuntime.InvokeAsync<string>("loadBitmapFile", "data/ulamSpiral-179424673.png");
-//    var bitmapData = Convert.FromBase64String(base64String);
-//    return SKBitmap.Decode(bitmapData);
-//}
-
-//private async Task LoadSelectedPreGeneratedSpiral()
-//{
-//    if (!string.IsNullOrWhiteSpace(selectedPreGeneratedSpiral))
-//    {
-//        _isLoading = true;
-//        var base64String = await JSRuntime.InvokeAsync<string>("loadBitmapFile", selectedPreGeneratedSpiral);
-//        var bitmapData = Convert.FromBase64String(base64String);
-//        _spiralBitmap = SKBitmap.Decode(bitmapData);
-//        _spiralBitmapInfo = _spiralBitmap.Info;
-
-//        SetInitialZoomLevel(_canvasHeight);
-//        CenterSpiralOnCanvas(_canvasWidth, _canvasHeight);
-
-//        _isLoading = false;
-//        await TriggerUiCanvasRedraw();
-//    }
 //}
 
 //private SKBitmap CreateSpiralBitmap(HashSet<int> primes, CancellationToken cancellationToken)
